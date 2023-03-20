@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="UTF-8">
+<html>
+<head>
+	<title>bitmask to Path</title>
+
+	<style>
+		.downloads { display: block; position: relative; }
+		button { display: block; margin: 0.5rem; }
+	</style>
+</head>
+
+<body>
+
+<div class="downloads"></div>
+
+<script src="igs-definitions.js"></script>
+
+<script type="module">
+
+import bitmaskToPath, { toIndex } from './bitmaskToPath.js';
+
+const pattern = [
+	[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
+	[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+	[0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
+	[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+	[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
+	[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+	[0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
+	[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+	[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
+	[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+	[0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
+	[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+	[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
+	[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+	[0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
+	[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1]
+];
+
+const dl =	document.querySelector('.downloads');
+
+
+for (const fp of fill_patterns) {
+	const pattern = fp.array;
+	const width = pattern[0].length;
+	const height = pattern.length;
+	const data = bitmaskToPath(pattern);
+	// console.log(width, height, path);
+	const svg_str = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><path d="${data}" /></svg>`
+
+	dl.insertAdjacentHTML('beforeend', `<button data-svg='${svg_str}' data-name='${fp.id}-${fp.name}'>${fp.id}-${fp.name}</button>`);
+
+}
+
+document.querySelectorAll('button').forEach((elem)=> {
+	elem.addEventListener('click', function(event) {
+		const svg_str = this.getAttribute('data-svg');
+		const svg_name = this.getAttribute('data-name') + '.svg';
+
+		const a = document.createElement('a');
+		const type = svg_name.split('.').pop();
+		a.href = URL.createObjectURL( new Blob([svg_str], { type:`text/${type === 'txt' ? 'plain' : type}` }) );
+		a.download = svg_name;
+		a.click();
+
+	});
+});
+
+
+
+
+
+</script>
+
+
+
+</body>
+</html>

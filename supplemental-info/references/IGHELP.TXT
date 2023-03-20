@@ -1,0 +1,643 @@
+      **********Instant Graphics and Sound Made Simple!**********
+
+
+      Instant Graphics, written by Larry Mears, is a revolutionary
+new way for Atarians to communicate over the modem in color, sound, and
+motion. Once described to me by a friend as a "souped-up" VT52, I've
+come to realize what an understatement that was. Just as VT52 is a
+method of sending hidden codes to control the cursor position and color
+on the users screen, IGS also uses 'hidden' commands to control the
+graphic display...but with astounding results! The users screen rapidly
+fills with graphic objects in full color.. boats, airplanes, saucers,
+trains, cartoon characters, etc... which are then animated around the
+screen in concert with a cacophony of beeps, boinks, hoots and grunts!
+Letters can be big or little, bold, italizied, or even turned upside
+down! It's magic! ("Souped-up VT52"....HA!)
+
+      Since I use FLASH as my terminal program, all of the following
+is based on using Instant Graphics as an accessory. Interlink uses an
+emulation file, and others who have used that method tell me it works
+substantially the same. I am not a programmer, but I AM a user who has
+experianced the frustration and fun of trying to program in IGS. Here's
+what I've learned......
+
+
+      When the IGS accessory is turned on, the screen displays a help
+menu. What you are also looking at, is a terminal screen. When you call
+your local BBS..log on..then go over to the capture buffer and turn on
+the accessory. Now, you are still on-line but looking at the BBS
+through the eyes of IGS. Communication proceeds as usual, with text
+scrolling up the screen as always. However, when the two letters 'G#'
+come in over the modem, IGS takes over and begins executing the commands
+that follow. The first letter after 'G#' is the instruction to be
+executed. For example, 'B' is for boxes, 'O' is for circles, 'W' is for
+writing text, etc. The numbers that follow are the parameters for that
+instruction, separated by commas. Each command must be ended with a
+colon ':'...(except for the 'W' command, which ends with '@')
+
+
+   A command for drawing a box in the middle of the screen might
+   look like this......
+                                  G#B 100,50,400,120,0:
+
+   Or a circle like this....      G#O 250,100,50:
+
+  Or a text display like this... G#W 100,120,WOW! I'm having fun now!@
+
+Commands may be 'chained' together, as many as will fit on one line.
+The 'chain' character is '>'. Place it in the space between the
+command letter and the first parameter value. The 'G#' only has to
+appear once at the beginning of every line. All three of the above
+commands would look like this if chained...
+
+G#B>100,50,400,120,0:O>250,100,50:W>100,120,WOW! I'm having fun now!@
+
+Since chaining is a good method of compacting your file to run
+faster, (Every time you chain a command, you save the two bytes from
+'G#', and two bytes for the line feed and carriage return ), get into the
+habit of using it in all commands, even if they are on a line all by
+themselves. All examples from here on will be written this way.
+
+      Many other commands modify what color the box will be, or what
+the circle will be filled with, or what size font to write the text.
+Since IGS processes each instruction in the order in which they are
+recieved, you must set the attributes of your graphic image BEFORE
+drawing it. If the text is to be in 20 point, you must tell IGS that
+fact, before the actual 'W' command is sent. Commands recieved after
+the 'W' that change the font size have no effect on the earlier
+statement. Understanding this type of 'in-line' coding, is the 'SECRET'
+of successfull IGS artwork!
+
+
+
+The following is a brief reference of the commands which I feel are
+useful to the user. I will eliminate descriptions of some of the
+command parameters as they are fully documented with the IGS accessory
+file from Larry Mears. I will only give parameters that I feel are
+useful. You must read the documentation that comes with your version of
+IGS to get the complete list of commands. Remember, the commands are
+case sensitive.... a small 's', and a capitol 'S' are two different
+animals!
+
+
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+                      ***** GENERAL COMMANDS *****
+
+-------------------------------------------------------------------------
+   s = clears the Screen.                    example...G#s>0:
+
+            0 = clears the entire screen and puts the cursor in
+                the upper left corner.
+            1 = clears from the cursor position to the upper
+                left corner.
+            2 = clears from the cursor position to the bottom
+                right corner.
+-------------------------------------------------------------------------
+   I = Initializes IGS                        example...G#I>0:
+
+            0 = Inialializes everything. Resolution, color, and
+                attributes. Use this at the start of every graphic and
+                at the end, especially if the screen color has been 
+                changed. Say you change the screen color to black, but
+                forget to change it back to white at the end. After the
+                graphic is finished and the BBS continues to transmit
+                text, the user would be staring at a black screen till
+                the cows come home, or until IGS encounters another 
+                statement that resets the screen color...whichever comes
+                first! (Yes, I know that pressing 'Clear Home" will
+                reset the pallet, but don't expect the user to know
+                that!!)
+                Come into a graphic 'clean'....and leave 'clean'...OK?
+
+-------------------------------------------------------------------------
+   A = Attributes of fills.                example...G#A>2,4,1:
+
+            1st = type.        ( 0=hollow, 1=solid, 2=pattern 3=hatch )
+            2nd = pattern type ( 1-24 for pattern, 1-12 for hatch )
+            3rd = borders      ( 1=yes, 2=no )
+---------------------------------------------------------------------------
+   E = Effects for text                    example...G#E>4,10,0:
+
+             1st = font effect ( 0=normal, 1= bold, 2=ghosted,4=italic )
+                               (       8=underlined, 16= outlined      )
+                               (      add them together for combo's    )
+             2nd = font size   ( 8,9,10,16,18,20 point)
+             3rd = rotation    ( 0=0deg  1=90deg  2=180deg  3=270deg   )
+-------------------------------------------------------------------------
+   T = Types of lines and markers          example...G#T>2,1,5:
+
+             1st =  0=polymarkers, 1=lines
+             2nd =  type of polymarker or line. For lines, 1 is default.
+             3rd =  size and end type..arrows,rounded,etc.
+-------------------------------------------------------------------------
+   M = Mode of drawing                     example...G#M>2:
+
+             The two most used values are 1 for overwrite, and 2 for
+             transparent. Use transparent when you want to write text
+             on top of something else without wiping out the background.
+-------------------------------------------------------------------------
+   H = Hollow setting                      example...G#H>1:
+
+                      0 = draws filled shapes
+                     1 = draws empty shapes
+-------------------------------------------------------------------------
+   t = pause                               example...G#t>15:
+
+             Sets a pause in seconds. A value of 15 causes IGS to wait
+             for 15 seconds before continuing. 30 seconds is the maximum,
+             but if you need more, put a few of them in a row. The pause
+             is terminated whenever the user presses a key, but the key
+             pressed is not sent to the BBS. The 't' command is a very
+             powerful tool...handle with CARE! Too much waiting will
+             spoil the graphic. Don't bore us! Ok?
+
+   NOTE:     In versions of IGS lower then 2.13, Larry Mears indvertantly
+             left out 'Flow Control'. Without it, you could pause IGS for
+             a few seconds while the BBS continued to send code. IGS kept
+             accepting commands over the modem, storing them until the
+             pause was over. IGS then played the stored code as fast as it
+             could, until it caught up with the still incoming code. This
+             was a **VERY** effective trick to make animations move
+             smoother, color changes to happen instantaneously, and other
+             special effects that demanded speed. Unfortunately, it also
+             caused havoc with files that were of a large size, rendering
+             them nearly useless. The 'bugs' wouldn't show up until the
+             file size approached 5-6k bytes, at which point it begin
+             introducing errors that were nearly impossible to eliminate,
+             and belive me, I tried! HA!
+             
+             In IGS 2.13 Larry has had to put 'Flow Control' back in to
+             eliminate the problem. This eliminates the 'bug' problem, but
+             also eliminates the above mentioned speed trick. BUT, IGS 2.13
+             now has a loop command which MORE then makes up for it! Put
+             your blitted shapes into the loop, and let IGS smoothly and
+             quickly move them around the screen. Thanks Larry!
+
+
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+
+
+                       ***** COLOR COMMANDS *****
+
+Color is a most important tool for effective graphics. In medium
+resolution, the user can control four colors, including the screen.
+Although the correct term may be 'pen', I find it easier to remember the
+colors as 'sets', with anything assigned to a 'set' as being in that
+color group forever. For instance, if you assign lines to be in color set
+1, draw some lines, and then later change lines to be in set 2, the lines
+drawn in set 1 will not change with the new assignment, only lines drawn
+after the change will be affected. If you later change the actual color
+of 'set' 1 to some new color, all things that were drawn in set 1 will
+change to that color. Here's the two most important commands....
+
+-------------------------------------------------------------------------
+
+   C = Color set assignment                example G#C>3,2:
+
+           1st = What kind of graphic 'thing' you're talking about.
+                            0 = polymarkers
+                            1 = lines
+                            2 = fills
+                            3 = text
+
+           2nd = What color 'set' to assign it.
+                            0 = screen.....default is white
+                            1 = set one....default is black
+                            2 = set two....default is red
+                            3 = set three..default is green
+
+-------------------------------------------------------------------------
+
+    S = Set the color of a 'set'           example G#S>1,7,7,0:
+
+            1st = What color 'set' are you talking about
+
+            The next three parameters are the values of Red, Green, and
+            Blue, that when mixed together create a new color. The
+            values are exactly the same as the numbers displayed in
+            the color slider bars of the control panel accessory. A
+            value of 7,7,7 is white, while a value of 0,0,0 is black.
+            A value of 7,0,0 is red, 7,7,0 is yellow, 7,4,7 is a light
+            purple, etc. Changing the color of a 'set' will change the
+            color of all objects drawn in that 'set'. This is an
+            effective way to draw things invisibly by changing the
+            color 'set' you are drawing with to that of the screen, 
+            then quickly changing color to "pop" the completed graphic
+            into view. Don't make us wait too long...it's boring!
+            Entertain us with something to look at or read while you 
+            draw 'invisibly'. Got it? Surprise us!!
+
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+
+                   ********** GRAPHIC COMMANDS **********
+
+      These commands draw circles, boxes, lines, etc. Most are effected
+by the 'A', 'T', 'M', 'E', 'C' or 'H' commands. Use them together for fun
+and interesting results. EXPERIMENT! Be creative..YOU are an ARTIST!
+
+-------------------------------------------------------------------------
+   W = Write text          example...G#W>200,100,This is too much fun!@
+
+                 1st = X position of start of text
+                 2nd = Y position of start of text
+                 3rd = the text to write
+
+      First set the color 'set' for text with the 'C' command, then
+      set the font size and effects with the 'E' command. Now write
+      your text with 'W'. This command is different then all the
+      others in that a 'W' command does not end with a colon (:), 
+      but ends with the "at" symbol (@). When chaining, do not put a 
+      colon after the '@', just continue as if it were a colon. (pretend)
+      Like this....
+
+    G#W>100,50,This is too much fun!@W>100,70,No it's not.@S>0,7,7,7:
+
+      Use the 'M' command to set whether the text overwrites the
+      background (M>1), or writes over the background transparently (M>2).
+--------------------------------------------------------------------------
+
+   L = Line                              example...G#L>100,50,222,90:
+
+         The first two values are the X,Y screen positions to start
+         drawing the line. The last two commands are the X,Y positions
+         to end the line. The screen goes from 0,0 in the upper left 
+         corner of the screen, to 639,199 in the lower right.
+         When drawing many lines that are connected, chain them
+         together using the 'D' command..It's ***MUCHO*** faster!
+         Rather then....
+
+                           G#L>100,50,222,90:
+                           G#L>222,90,300,100:
+                           G#L>300,100,325,80:
+                           G#L>325,80,250,60:
+                           G#L>250,60,280,30:
+
+     Do this....
+
+          G#L>100,50,222,90:D>300,100:D>325,80:D>250,60:D>280,30:
+
+          A saving of over 50 bytes, and a 50% speed increase in this
+          small 5 line example!! Speed may not be the answer, but
+          waiting to find out isn't either!!! Every single byte saved
+          makes your graphic that much more 'snappy' and exciting.
+          Clean up your code...ok?
+
+-------------------------------------------------------------------------
+   D = Draw to                             example G#D>280,30:
+
+         Draws a line from the last point drawn to this point. The
+         values are the X,Y position to draw to. Good for chaining
+         Line commands together.
+
+         Note:
+               The 'D' command will not work from one line of code to
+               the next. The carriage return at the end of a line of
+               code causes IGS to forget the last point plotted. You
+               must start each line of code with a 'L'ine command,
+               then begin chaining with 'D' again.
+
+-------------------------------------------------------------------------
+   P = Plot a polymarker                     example G#P>22,110:
+
+                  Plots a polymarker at an X,Y position
+                  Choose the type of marker with the 'T' command.
+
+-------------------------------------------------------------------------
+   B = Box                         example...G#B>100,50,300,90,1:
+
+                  1st and 2nd = X,Y position of the upper left corner
+                  3rd and 4th = X,Y position of the lower right corner
+                  5th =  0=square corners  1=round corners
+
+-------------------------------------------------------------------------
+   Z = filled rectangle            example...G#Z>100,50,300,90:
+
+                  1st and 2nd = X,Y position of the upper left corner
+                  3rd and 4th = X,Y position of the lower right corner
+
+-------------------------------------------------------------------------
+   U = rounded rectangle           example...G#U>100,50,300,90:
+
+                  1st and 2nd = X,Y position of the upper left corner
+                  3rd and 4th = X,Y position of the lower right corner
+
+-------------------------------------------------------------------------
+   O = Circle                                example...G#O>100,50,30:
+
+                  1st = X position
+                  2nd = Y position
+                  3rd = circle radius
+
+                 To draw a filled circle, first set the type of fill with
+                 the 'A' command, then tell IGS to draw solid graphic 
+                 objects with the 'H' command, then draw the circle. 
+-------------------------------------------------------------------------
+   Q = ellipse                          example...G#Q>200,50,30,70:
+
+                  1st = X position of center
+                  2nd = Y position of center
+                  3rd = X axis radius
+                  4th = Y axis radius
+-------------------------------------------------------------------------
+   K = arc of circle                   example...G#K>100,50,30,20,80:
+
+                  1st = X position of center
+                  2nd = Y position of center
+                  3rd = circle radius
+                  4th = beginning angle to start drawing
+                  5th = ending angle to stop drawing.
+
+        With this command, and the 'J' command, the four major points
+        of the angular compass are analagous to a clock face. Three
+        o'clock is 0 degrees, 12 o'clock is 90 degrees, 9 o'clock is 180
+        degrees, and 6 o'clock is 270 degrees.
+-------------------------------------------------------------------------
+   J = arc of an ellipse             example...G#J>100,50,25,40,0,180:
+
+                  1st = X position of center
+                  2nd = Y position of center
+                  3rd = X oval radius
+                  4th = Y oval radius
+                  5th = beginning angle to start drawing
+                  6th = ending angle to stop drawing
+-------------------------------------------------------------------------
+   V = circular pieslice           example...G#V>200,100,50,180,270:
+
+         This command is exactly like the 'K' command, except it draws
+         a filled pieslice from the circle center to the endpoints of
+         the arc. Make mine cherry...yummy!
+-------------------------------------------------------------------------
+   Y = elliptical pieslice         example...G#Y>300,100,40,80,85,125:
+
+         This command is exactly as the 'J' command, except it draws a
+         filled pieslice from the ellipse center to the endpoints of
+         the arc.
+
+-------------------------------------------------------------------------
+   F = Fill                                example...G#F>100,80:
+
+         Fills an enclosed area starting at the XY values. The color
+         of the fill is set with the 'C' command, and the pattern of
+         the fill is set with the 'A' command.
+
+         The fill command is ****VERY SLOW****. It slows up even more as
+         the fill encounters irregular surfaces like text. Try to avoid
+         using the fill command by drawing filled boxes or circles at
+         the start, then writing your text on top of it in tranparent
+         mode. Use it ONLY if there is no other way. Think ahead!
+
+
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+
+               ****************  SOUNDS  ****************
+
+     Adding sound to your masterpiece is like putting iceing on the
+cake. Sounds can add excitment, create a mood, emphasize a point, or even
+accompany your spaceship as it glides in from Venus. Some sounds suspend
+execution of commands for a brief moment, while others continue without
+affecting the speed of your graphic presentation. Use sounds that fit the
+action taking place on the screen. Try to be consistant all the way
+through your movie. I use sound number 17 "Robot Walk" as a way to change
+from one screen to the next, and then again at the end of most of my
+graphics. I use sound number 8 "Long Bell" when I want to get the user to
+press a key, or call attention to a subtle point. Sound number 4
+"Jackhammer" works well to announce something new that is about to appear
+on the screen...especially something drawn "invisibly". The slight delay
+this sound causes, makes the color change to be nearly instantaneous, and
+as a side benefit, it stops the continuation of some sounds that seem to
+go on forever...like sound number 16 "Wave". You can even simulate
+laughter with sound number 18 "Passing Plane". Fool around with all
+of the sounds to get a feeling for what would be appropriate in your 
+'cinematic extravaganzo'!!
+
+The command letter is 'b'             example G#b>17:
+
+And 'hear' they are.........
+
+          0  Alien Invasion              9 Surprise
+          1  Red Alert                  10 Radio Brodcast
+          2  Gunshot                    11 Bounce Ball
+          3  Laser 1                    12 Erie Sound
+          4  Jackhammer                 13 Harley Motorcycle
+          5  Teleport                   14 Helicopter
+          6  Explosion                  15 Steam Locomotive
+          7  Laser 2                    16 Wave
+          8  Longbell                   17 Robot Walk
+                                        18 Passing Plane
+
+
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+
+            ***************  ANIMATION  **************
+
+      Ahhh..now we get to the good part! Deflate your shoes, and prepare
+yourself for simulated exhilaration! I'll try to be as clear as I can be
+in my explanation of 'Blitting', but you must experiment for yourself to 
+grasp the full power of it's effects.
+
+Most of us grew up with Saturday mornings spent in front of a television
+watching cartoons. While most adults will dismiss them as 'childish', I
+cherish them! Probably most of you do too. Watching cartoons brings a
+sense of wonder to the surface for me...especially when I realize the
+animators had to create thousands of drawings for just a few minutes of
+film. With IGS, the effort is far less, but the effect can be just as
+wonderous. Creating characters that walk, talk, bounce and waddle may be
+beyond the abilities of IGS, (at least so far...just wait!), the simple
+movement of an object across the screen can add immeasurably to the
+enjoyment of your graphic attempt. So lets move that object......
+
+   G = Grab a rectangular piece of the screen...a 'blit'
+
+            example... G#G>1,3,50,100,100,150:
+
+The first value is the 'type' of blit..
+
+             0 = screen to screen...Useless. Ignore it
+             1 = screen to memory...Picks it up!
+             2 = memory to screen...Puts it down!
+
+The second value is the 'mode' of the blit. Although there are 16
+different modes, only four of them have any 'real' effect, and two of
+those are rarely used except for special effects. For now, let's just
+learn the two modes that are significant. These modes have no effect
+on a type 1 (screen to memory) blit, so just set the mode value to 3
+for them and forget about it. The two useful modes for type 2 blits
+are...
+
+      3 = Replace mode. Puts the blit down on the screen, wiping out
+                        whatever was under it. You will use this mode
+                        almost exclusively for moving an object.
+
+      7 = Transparent mode. Puts the blit down on the screen without 
+                            wiping out what's under it. If the blit is a
+                            lighter color then the background, the 
+                            background will show through. If the blit
+                            color is darker then the background, the
+                            background will be hidden. This is not
+                            useful for moving animations, but it is
+                            valuable for 'still' effects.
+
+      The remaining values of the 'G' command are the XY positions of
+the upper left corner and lower right corner of the blit for a type 1
+(screen to memory) operation. For a Type 2 (memory to screen) blit, only
+the XY of the upper left corner is needed.
+*************************************************************************
+
+                               TUTORIAL       
+                             (How to Fly)     
+
+      Suppose you have drawn a fly on the screen, somewhere over near
+the left side of the screen and now you want to 'fly' it over to the
+right side of the screen. Let's do it in one big jump first, so  we
+can see what's happening easier. 
+
+Here is a piece of code that will draw a fly. Just cut it out and save
+it as FLY.IGS.....then look at it with IGS's 'F8' option.
+
+G#I>0:s>0:H>1:C>2,1:O>156,100,13:J>172,90,25,10,215,265:
+G#J>172,110,25,10,95,145:J>128,100,25,6,40,320:A>2,6,0:F>126,100:A>2,4,0:
+G#F>152,100:L>141,95,95,86:L>141,105,95,114:L>139,100,93,100:
+G#T>2,1,4:J>107,107,40,8,90,256:J>107,93,40,8,104,270:T>2,1,4:
+G#L>140,95,146,90:D>154,88:L>128,94,132,89:D>130,86:L>170,100,175,100:
+G#L>140,105,146,110:D>154,112:L>128,106,132,111:D>130,114:
+G#L>118,94,108,91:D>109,89:L>118,106,108,109:D>109,111:
+
+Now that our fly is sitting on the left side of the screen, we can
+save a rectangular block of the screen image with the type 1 blit.
+Like this....
+
+G#G>1,3,0,70,180,120:
+
+And put it back down 400 pixels to the right with the type 2 blit.
+Like this...
+
+G#G>2,3,400,70:
+
+Stick these two commands on to the end of FLY.IGS and watch it with the
+F8 option of the accessory. Notice how the fly instantly pops to the
+right, but the fly on the left is still there. When I first cut out
+the fly, I cut an area behind the fly that was bigger then nessasary.
+Rather then devising a method of erasing the original fly (like with a
+white box), I'll use the excess white screen behind the fly to "cover
+my tracks". This time, let's only move the fly 50 pixels to the right.
+As the new fly is being pasted down, the blank screen behind it covers
+up the original fly automatically! Replace the last line of FLY.IGS
+with this line.....
+
+G#G>2,3,50,70:
+
+Now write the same statement 7 more times, increasing the X position value
+by 50 each time....or just cut out the following and save it.
+
+G#I>0:s>0:H>1:C>2,1:O>156,100,13:J>172,90,25,10,215,265:
+G#J>172,110,25,10,95,145:J>128,100,25,6,40,320:A>2,6,0:F>126,100:A>2,4,0:
+G#F>152,100:L>141,95,95,86:L>141,105,95,114:L>139,100,93,100:
+G#T>2,1,4:J>107,107,40,8,90,256:J>107,93,40,8,104,270:T>2,1,4:
+G#L>140,95,146,90:D>154,88:L>128,94,132,89:D>130,86:L>170,100,175,100:
+G#L>140,105,146,110:D>154,112:L>128,106,132,111:D>130,114:
+G#L>118,94,108,91:D>109,89:L>118,106,108,109:D>109,111:
+G#G>1,3,0,70,180,120:
+G#t>2:
+G#b>7:
+G#G>2,3,50,70:
+G#G>2,3,100,70:
+G#G>2,3,150,70:
+G#G>2,3,200,70:
+G#G>2,3,250,70:
+G#G>2,3,300,70:
+G#G>2,3,350,70:
+G#G>2,3,400,70:
+
+Notice I put in a 2 second delay, and a sound, to increase the
+'feeling' for the action. Now, using what you know about chaining,
+compact those final lines for efficiency. TAA-DAA!!!
+
+Modify the code to move the fly in different directions.. (you may
+have to adjust the size of the type 1 blit to get enough blank screen
+to "cover your tracks")..change the colors..draw it 'invisibly'.. add
+some sounds....add a windshield at the end..hehehehehe.
+
+                   Whatever you do....HAVE FUN! 
+
+************************************************************************
+
+
+
+Final Words:
+
+      The information in the preceeding file was based on a 'USERS'
+experiance. I may have my facts a little screwball, but the end
+results are valid just the same. So cut me some 'slack' if I messed up
+here or there, ok? There are many commands that I have intentionally
+left out. Read the doc's for IGS written by Larry Mears for the whole
+'scoop'. Send him $15.... Do it..... Now.....Right now...I MEAN IT!!!
+
+
+
+More Final Words:
+
+      As an exercise in programming, why not create a 'calling card'
+written in IGS? Whenever you go to a new BBS, you could leave your
+'card' to let the locals know who's dropped by. Sysops could collect
+them just like the HAM radio guys collect post cards from their
+contacts. Boards could have an area with the 'cards' on display. It
+sounds like fun to me...
+
+     Let's make the 'cards' a standard size for ease of viewing, ok?
+Draw a box with this command....
+
+                      G#B>50,30,590,150,1:
+
+   ....and fill it with your name, city and state, and how to contact
+you....and anything else you wish to say. Try to keep the entire file
+under 3000 bytes, and not take longer then one minute to execute.
+
+So, here's my card...but I want to see YOURS!!
+
+G#I>0:s>0:C>2,0:B>0,190,639,199,0:S>1,7,7,7:S>2,7,7,7:S>3,7,7,7:b>16:
+G#A>2,8,1:C>2,1:B>44,28,597,152,1:C>2,3:B>50,30,591,150,1:H>1:C>2,1:
+G#B>72,37,582,146,1:G>1,3,270,39,383,44:B>82,41,572,142,1:G>2,3,270,39:
+G#C>1,1:J>327,38,50,15,180,0:J>327,38,60,19,195,345:b>16:
+G#L>262,44,96,44:D>90,45:D>90,47:D>148,61:D>160,62:D>268,49:D>262,44:
+G#L>390,44,556,44:D>562,45:D>562,47:D>504,61:D>492,62:D>384,49:D>390,44:
+G#W>128,133,LET'S 'DO' LUNCH!@C>3,2:W>126,132,LET'S 'DO' LUNCH!@C>3,1:
+G#O>246,46,20:O>230,55,17:O>478,57,17:O>138,76,30:O>143,108,14:
+G#O>520,99,25:O>545,110,20:T>2,1,1:C>1,1:J>220,142,30,15,325,216:C>2,2:
+G#B>66,35,576,144,1:G>1,3,264,37,377,42:B>76,39,566,140,1:G>2,3,264,37:
+G#C>1,2:J>321,36,50,15,180,0:J>321,36,60,19,195,345:
+G#L>256,42,90,42:D>84,43:D>84,45:D>142,59:D>154,60:D>262,47:D>256,42:
+G#L>384,42,550,42:D>556,43:D>556,45:D>498,59:D>486,60:D>378,47:D>384,42:
+G#T>1,1,1:C>0,1:P>245,144:P>244,144:P>245,140:P>244,140:P>186,140:
+G#P>187,140:C>2,0:O>240,40,20:O>224,49,17:O>466,50,17:O>128,69,30:
+G#O>138,105,14:O>513,92,25:O>533,102,20:O>206,134,31:C>1,0:T>2,1,4:
+G#J>240,40,14,7,95,160:J>224,49,11,6,95,160:J>466,50,11,6,95,160:
+G#J>128,69,24,12,95,160:J>138,105,9,4,95,160:J>513,92,18,8,95,160:
+G#J>533,102,14,7,95,165:J>206,134,22,11,95,160:C>3,1:E>5,20,O:
+G#P>486,60:P>485,60:W>238,92,Mr. Rodgers@C>3,2:W>234,89,Mr. Rodgers@
+G#C>3,1:E>5,9,0:W>237,107,Laguna Beach California@C>3,2:
+G#W>235,105,Laguna Beach California@C>3,1:E>1,8,0:
+G#W>400,128,Contact:  London Smog BBS@W>470,137,714-546-2152@C>3,2:
+G#W>398,127,Contact:  London Smog BBS@W>469,136,714-546-2152@b>4:
+G#S>3,5,0,0:S>2,7,7,0:S>1,0,0,0:t>3:G>1,3,452,60,552,111:C>0,0:T>1,3,2:
+G#P>496,86:T>1,3,4:G>2,3,452,60:P>496,86:T>1,3,6:G>2,3,452,60:P>496,86:
+G#T>1,3,8:G>2,3,452,60:P>496,86:b>8:G>2,3,452,60:G>1,3,156,90,232,148:
+G#T>1,3,2:t>3:P>190,123:T>1,3,4:G>2,3,156,90:P>190,123:T>1,3,6:
+G#G>2,3,156,90:P>190,123:T>1,3,8:G>2,3,156,90:P>190,123:b>8:G>2,3,156,90:
+G#t>1:G>1,3,437,25,483,54:T>1,3,1:P>457,46:T>1,3,2:G>2,3,437,25:P>457,46:
+G#T>1,3,3:G>2,3,437,25:P>457,46:T>1,3,4:G>2,3,437,25:P>457,46:T>1,3,5:
+G#b>8:G>2,3,437,25:G>1,3,174,80,220,112:C>2,3:H>0:t>2:T>1,3,4:
+G#G>2,3,117,91:P>138,105:O>138,105,18:b>17:G>2,3,117,91:t>1:
+G#b>18:t>5:b>17:s>0:I>0:
+
+
+
+                                    Bye now....       
+
+                                    S. Turnbull       
+                               aka 'Mr. Rodgers'      
+
