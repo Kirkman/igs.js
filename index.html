@@ -1,0 +1,214 @@
+<!doctype html>
+<meta charset="UTF-8">
+<html>
+<head>
+	<title>JoshDraw</title>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" />
+	<link rel="stylesheet" href="fonts.css" />
+	<link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+	<div class="app-wrapper">
+
+		<section class="pane-top">
+
+			<section class="pane pane-left disabled">
+				<div class="widget widget-tools">
+					<h2>Tools</h2>
+					<select>
+						<option value="" selected disabled hidden>Choose a tool</option>
+					</select>
+				</div>
+
+				<div class="widget widget-colors">
+					<h2>Colors</h2>
+					<div class="palette-wrapper"></div>
+				</div>
+
+				<div class="widget widget-patterns">
+					<h2>Fill patterns</h2>
+					<select multiple>
+						<!-- <option value="" selected disabled hidden>Choose a pattern</option> -->
+					</select>
+					<div class="option-set">
+						<input type="checkbox" id="fill-border" name="fill-border" value="true">
+						<label for="fill-border"> Border around filled shapes?</label>
+					</div>
+				</div>
+
+
+				<div class="widget widget-drawing-mode">
+					<h2>Drawing mode</h2>
+					<select>
+						<option value="1">Replace (overwrite)</option>
+						<option value="2" selected>Transparent (good for patterns)</option>
+						<option value="3" disabled hidden>XOR</option>
+						<option value="4" disabled hidden>Reverse transparent</option>
+					</select>
+				</div>
+
+				<div class="widget widget-loupe">
+					<h2>Loupe</h2>
+					<div class="loupe-container">
+						<div class="loupe-pixel"></div>
+						<div class="loupe-grid"></div>
+						<canvas id="loupe-canvas" class="canvas"></canvas>
+					</div>
+				</div>
+
+				<div class="widget widget-files">
+					<h2>Files</h2>
+					<div class="files-wrapper">
+						<!-- <button type="button" class="ui-button create-new" value="create-new">Create new art</button>
+						<button type="button" class="ui-button load-json" value="load-json">Load JSON file</button> -->
+						<ul>
+							<li><a class="files-link files-save-json">Save as JSON</a></li>
+							<li><a class="files-link files-export-ig">Export as IG</a></li>
+						</ul>
+					</div>
+				</div>
+
+				<div class="pulse-container tool-unset">
+					<svg class="pulse-svg" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+						<circle class="pulse-circle" cx="512" cy="512" r="512"></circle>
+					</svg>
+				</div>
+
+
+			</section>
+
+			<section class="pane pane-main">
+				<h1>JoshDraw</h1>
+
+				<p>Experimental vector paint program which exports art in the IGS format for Atari ST BBSes.
+				<br/>Use right-click to finish a polyline or close a polygon.</p>
+
+				<div class="canvas-container">
+					<div class="canvas-subcontainer">
+						<canvas id="cursor-overlay" class="canvas"></canvas>
+						<div id="canvas-overlay" class="hidden"></div>
+						<canvas id="live-canvas" class="canvas"></canvas>
+						<canvas id="paint-canvas" class="canvas"></canvas>
+						<canvas id="pattern-canvas" class="canvas"></canvas>
+					</div>
+				</div>
+
+				<div class="status-container">
+					<div class="status-bar">
+						<div class="status-coordinates status-x">
+							<div class="status-label">X:</div>
+							<div class="status-value"></div>
+						</div>
+						<div class="status-coordinates status-y">
+							<div class="status-label">Y:</div>
+							<div class="status-value"></div>
+						</div>
+					</div>
+					<div class="option-set">
+						<input type="checkbox" id="show-overlay" name="show-overlay" value="true">
+						<label for="show-overlay"> Show pixel grid overlay</label>
+					</div>
+				</div>
+
+				<div class="tips-container" style="text-align: left;">
+					<div class="tips">
+						<h3>Tips</h3>
+						<ul>
+							<li>You must first select a tool and a color before you can begin to draw.</li>
+							<li>Use [Ctrl/Cmd]-[Z] to undo a command, and [Shift]-[Ctrl/Cmd]-[Z] to redo.</li>
+							<li>Hold [Shift] while drawing lines or polygons to snap the line to multiples of 45&deg;.</li>
+							<li>Single-click a color in the palette to choose that color. Double-click to redefine that palette slot.</li>
+						</ul>
+					</div>
+				</div>
+
+
+			</section>
+
+			<section class="pane pane-right">
+			</section>
+
+		</section><!-- #pane-top -->
+
+
+		<section class="pane-bottom">
+
+			<section id="background-info" style="display:none;">
+			<h3>What is IGS?</h3>
+			<p></p>
+			<p>Here are a few places to learn more about Instant Graphics and Sound:</p>
+			<ul>
+				<li></li>
+			</ul>
+			</section>
+
+		</section><!-- #pane-bottom -->
+
+	</div><!-- .app-wrapper -->
+
+	<section class="modal-wrapper">
+		<div class="step-1 modal">
+			<h2>Get started</h2>
+			<button type="button" class="ui-button create-new" value="create-new">Create new art</button>
+			<button type="button" class="ui-button load-json" value="load-json">Load JSON file</button>
+		</div>
+
+		<div class="step-2 create-new modal hidden">
+			<div class="widget widget-resolutions">
+				<h2>Choose a resolution</h2>
+				<select>
+				</select>
+			</div>
+			<div class="widget widget-palettes">
+				<h2>Choose a palette</h2>
+				<select disabled>
+				</select>
+			</div>
+			<button type="button" class="start ui-button" disabled>Start!</button>
+		</div>
+
+		<div class="step-2 upload modal hidden">
+			<div class="widget widget-upload">
+				<h2>Load JSON file</h2>
+				<input type="file" class="upload-file" />
+			</div>
+		</div>
+
+
+		<div class="widget widget-color-picker modal hidden">
+			<h2>Color picker</h2>
+			<div class="input-wrapper">
+				<div class="input-set">
+					<label for="picker-red"> R</label>
+					<input type="range" id="picker-red" name="picker-red" min="0" max="7" step="1" value="0">
+					<label for="picker-red" class="value">0</label>
+				</div>
+				<div class="input-set">
+					<label for="picker-green"> G</label>
+					<input type="range" id="picker-green" name="picker-green" min="0" max="7" step="1" value="0">
+					<label for="picker-green" class="value">0</label>
+				</div>
+				<div class="input-set">
+					<label for="picker-blue"> B</label>
+					<input type="range" id="picker-blue" name="picker-blue" min="0" max="7" step="1" value="0">
+					<label for="picker-blue" class="value">0</label>
+				</div>
+			</div>
+			<div class="preview-wrapper">
+				<div class="color-preview"></div>
+			</div>
+			<div class="palette-squares"></div>
+			<button type="button" class="color-choose ui-button">Use this color</button>
+		</div>
+	</section>
+
+
+
+
+	<!-- <script src="borland.js"></script> -->
+	<script src="igs-definitions.js"></script>
+	<script src="igs.js"></script>
+
+</body>
+</html>
