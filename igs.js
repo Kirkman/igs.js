@@ -399,16 +399,16 @@ function set_resolution_palette(res_val, pal_val, starting_new=false) {
 	// ... it works well, but after trying it, I find the delay unacceptable. 
 	// Going to have to live without double-click for completing polylines/polygons.
 
-	// SET UP CANVAS DOUBLE CLICK HANDLERS
-	canvasContainer.addEventListener('dblclick', function(event) {
-		if (current_tool !== null) {
-			console.log(`Event Listener: Double-click  |  Tool: ${current_tool}`);
-			debug(`Event Listener: Double-click  |  Tool: ${current_tool}`);
-			debug(`Event Listener: Double-click  |  State: ${current_state}`);
-			tool_functions[current_tool].ondblclick(event);
-		}
-		return false;
-	}, false);
+	// // SET UP CANVAS DOUBLE CLICK HANDLERS
+	// canvasContainer.addEventListener('dblclick', function(event) {
+	// 	if (current_tool !== null) {
+	// 		console.log(`Event Listener: Double-click  |  Tool: ${current_tool}`);
+	// 		debug(`Event Listener: Double-click  |  Tool: ${current_tool}`);
+	// 		debug(`Event Listener: Double-click  |  State: ${current_state}`);
+	// 		tool_functions[current_tool].ondblclick(event);
+	// 	}
+	// 	return false;
+	// }, false);
 
 	// SET UP CANVAS RIGHT-CLICK HANDLERS
 	canvasContainer.addEventListener('contextmenu', function(event) {
@@ -608,6 +608,7 @@ color_picker_inputs.forEach((elem)=> {
 
 
 const tools = [
+	{ 'name': 'Pencil', 'function': 'draw_point' },
 	{ 'name': 'Draw line', 'function': 'draw_line' },
 	{ 'name': 'Draw polyline', 'function': 'draw_polyline' },
 	{ 'name': 'Draw filled rectangle', 'function': 'draw_rect' },
@@ -812,6 +813,9 @@ const history = {
 				case 'change_pattern':
 					cmd_str += `G#A>${cmd.params.pattern},${cmd.params.border_flag}:\r\n`;
 					break;
+				case 'draw_point':
+					cmd_str += `G#P>${cmd.params.points[0][0]},${cmd.params.points[0][1]}:\r\n`;
+					break;
 				case 'draw_line':
 					cmd_str += `G#L>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${cmd.params.points[1][0]},${cmd.params.points[1][1]}:\r\n`;
 					break;
@@ -924,6 +928,14 @@ const renderer = {
 		// // Set global border_flag to new value.
 		// border_flag = params.border_flag;
 	},
+	draw_point: function(params) {
+		this.update_tool('draw_point');
+		// My command history includes a `color` param, but I probably shouldn't be including that. 
+		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
+
+		// Draw the point
+		fill_pixel(context, params.points[0][0], params.points[0][1]);
+	},
 	draw_line: function(params) {
 		this.update_tool('draw_line');
 		// My command history includes a `color` param, but I probably shouldn't be including that. 
@@ -997,6 +1009,58 @@ const renderer = {
 
 
 const tool_functions = {
+	draw_point: {
+		onclick: function(event) {
+			debug(`draw_point click  |  Tool: ${current_tool}`);
+			debug(`draw_point click  |  State: ${current_state}`);
+
+			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+
+			// Add this action to our history stack.
+			history.add({
+				action: 'draw_point',
+				params: {
+					color: current_color_index,
+					points: [
+						[px, py]
+					]
+				}
+			});
+
+			// Redraw everything
+			renderer.render();
+
+			// Reset state and variables
+			current_state = 'start';
+		},
+		// ondblclick: function(event) {
+		// }, 
+		onrightclick: function(event) {
+			// Clear live-drawing canvas
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+
+			// Redraw everything
+			renderer.render();
+
+			// Reset state and variables
+			current_state = 'start';
+		},
+		mousemove: function(event) {
+			debug(`draw_point mousemove  |  Tool: ${current_tool}`);
+			debug(`draw_point mousemove  |  State: ${current_state}`);
+
+			let px = event.layerX;
+			let py = event.layerY;
+
+			// Clear live-drawing and cursor canvases
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+
+			draw_cursor(0, px, py);
+			update_loupe(px, py);
+			update_status(px, py);
+		}
+	},
 	draw_line: {
 		onclick: function(event) {
 			debug(`draw_line click  |  Tool: ${current_tool}`);
