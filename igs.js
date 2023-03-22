@@ -96,8 +96,6 @@ upload_input.addEventListener('change', function(event) {
 	// Show the panes
 	document.querySelector('.pane.disabled').classList.remove('disabled');
 
-	set_resolution_palette('atari_st_low', 0, starting_new=false);
-
 	// getting a hold of the file reference
 	const file = event.target.files[0]; 
 
@@ -784,8 +782,8 @@ const history = {
 			// Manually set the colors, because when switching from medium to low res, 
 			// the Atari low default does NOT get set automatically.
 			if (init.params.palette_flag == 1 || init.params.palette_flag == 2) {
-				for (let c=0; c<resolutions[0].palettes[init.params.palette_flag-1].colors.length; c++) {
-					let color = resolutions[0].palettes[init.params.palette_flag-1].colors[c];
+				for (let c=0; c<resolutions[0].palettes[init.params.palette_flag].colors.length; c++) {
+					let color = resolutions[0].palettes[init.params.palette_flag].colors[c];
 					cmd_str += `G#S>${c},${color[0]},${color[1]},${color[2]}:\r\n`;
 				}
 			}
@@ -883,10 +881,16 @@ const renderer = {
 	render: function() {
 		// Set state as rendering
 		current_state = 'rendering';
-		this.cls();
+
 		// Iterate over command history
-		for (const cmd of history.past) {
+		for (let i=0; i<history.past.length; i++) {
+			const cmd = history.past[i];
+
 			renderer[cmd.action](cmd.params);
+
+			if (i == 0 && cmd.action == 'set_resolution') {
+				this.cls();
+			}
 		}
 		// End with current command
 		renderer[history.present.action](history.present.params);
@@ -898,7 +902,8 @@ const renderer = {
 		document.querySelector('.widget-tools select').dispatchEvent(new Event('change'));
 	},
 	set_resolution: function(params) {
-		// For now we'll default to low rez and ignore this.
+		// For now we'll default to low rez.
+		set_resolution_palette('atari_st_low', params.palette_flag, starting_new=false);
 	},
 	set_color: function(params) {
 		// Manually trigger a click on the color we're choosing so it will be selected in the interface
@@ -1814,8 +1819,8 @@ function fill_rect(ctx, corners) {
 	const y0 = Math.min(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
 	const y1 = Math.max(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
 
-	for (let y=y0; y<y1; y++) {
-		for (let x=x0; x<x1; x++) {
+	for (let y=y0; y<y1+1; y++) {
+		for (let x=x0; x<x1+1; x++) {
 			fill_pixel(ctx, x, y);
 		}
 	}
