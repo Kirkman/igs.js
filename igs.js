@@ -172,18 +172,19 @@ button_start.addEventListener('click', function(event) {
 	document.querySelector('.pane.disabled').classList.remove('disabled');
 
 	// Get the user's choices
-	const user_res_val = document.querySelector('.widget-resolutions select').value;
-	const user_pal_val = document.querySelector('.widget-palettes select').value;
+	const user_res_id = document.querySelector('.widget-resolutions select').value;
+	const user_pal_id = document.querySelector('.widget-palettes select').value;
 
-	set_resolution_palette(user_res_val, user_pal_val, starting_new=true);
+	set_resolution_palette(user_res_id, user_pal_id, starting_new=true);
 
 });
 
 
 // Set the screen resolution, and the color palette, either from user-defined selections, or from data from a loaded file.
-function set_resolution_palette(res_val, pal_val, starting_new=false) {
+function set_resolution_palette(res_id, pal_id, starting_new=false) {
+
 	// Get the details of the user's chosen resolution
-	const user_resolution = resolutions.filter(elem => elem.slug == res_val)[0];
+	const user_resolution = resolutions.filter(elem => elem.slug == res_id)[0];
 
 	// Set canvas dimensions in CSS variable
 	root.style.setProperty(`--canvas-width`, user_resolution.width);
@@ -197,10 +198,16 @@ function set_resolution_palette(res_val, pal_val, starting_new=false) {
 	}
 
 	// Set a pointer to the chosen color palette
-	current_palette = user_resolution.palettes[pal_val].colors;
+	current_palette = user_resolution.palettes[pal_id].colors;
 	current_color_index = 0;
 
 	// Set up colors widget
+	const widget = document.querySelector('.widget-colors .palette-wrapper');
+
+	// First, empty any existing buttons
+	widget.replaceChildren();
+
+	// Now, add new buttons
 	for (let i=0; i<current_palette.length; i++) {
 		let color_array = current_palette[i];
 		let color_rgb = atari_to_rgb(color_array);
@@ -209,7 +216,6 @@ function set_resolution_palette(res_val, pal_val, starting_new=false) {
 		// Set color values in CSS variables
 		root.style.setProperty(`--palette-color-${i}`, color_str);
 
-		let widget = document.querySelector('.widget-colors .palette-wrapper');
 		widget.insertAdjacentHTML('beforeend', `
 			<button type="button" class="palette-button palette-color-${i}" value="${i}">${i}</button>
 		`);
@@ -218,16 +224,16 @@ function set_resolution_palette(res_val, pal_val, starting_new=false) {
 	// If we are starting a new document, then add this command to the history stack.
 	// If we're loading from a saved file, or replaying history, ignore this part.
 	if (starting_new == true) {
-		let palette_flag = 1;
-		if (pal_val == 2) { palette_flag = 2; }
+		let sys_palette_flag = 1;
+		if (pal_id == 2) { sys_palette_flag = 2; }
 
 		// Add the resolution and color palette selection to our history stack.
 		history.add({
 			action: 'set_resolution',
 			params: {
 				resolution: user_resolution.id,
-				palette_flag: palette_flag, // default ST palette. 0=no change, 1=Atari default, 2=IGS default palette
-
+				sys_palette_flag: sys_palette_flag, // default ST palette. 0=no change, 1=Atari default, 2=IGS default palette
+				palette_id: pal_id, // This is my JoshDraw palette ID. 0=Atari default, 2=IGS default, 3=Dawnbringer
 			}
 		});
 	}
@@ -309,7 +315,7 @@ function set_resolution_palette(res_val, pal_val, starting_new=false) {
 		const g = parseInt(document.querySelector('#picker-green').value);
 		const b = parseInt(document.querySelector('#picker-blue').value);
 
-		change_palette_color(current_color_index, [r,g,b]);
+		// change_palette_color(context, current_color_index, [r,g,b]);
 
 		if (current_state !== 'rendering') {
 			// Add this action to our history stack.
@@ -777,17 +783,16 @@ const history = {
 		if (full_history[0].action == 'set_resolution') {
 			// Get the initial resolution command
 			const init = full_history.shift();
-			cmd_str += `G#I>0:R>${init.params.resolution},${init.params.palette_flag}:s>5:k>0:T>1,1,1:\r\n`;
+			cmd_str += `G#I>0:R>${init.params.resolution},${init.params.sys_palette_flag}:s>5:k>0:T>1,1,1:\r\n`;
 
 			// Manually set the colors, because when switching from medium to low res, 
 			// the Atari low default does NOT get set automatically.
-			if (init.params.palette_flag == 1 || init.params.palette_flag == 2) {
-				for (let c=0; c<resolutions[0].palettes[init.params.palette_flag].colors.length; c++) {
-					let color = resolutions[0].palettes[init.params.palette_flag].colors[c];
+			if (init.params.sys_palette_flag == 1 || init.params.sys_palette_flag == 2) {
+				for (let c=0; c<resolutions[0].palettes[init.params.palette_id].colors.length; c++) {
+					let color = resolutions[0].palettes[init.params.palette_id].colors[c];
 					cmd_str += `G#S>${c},${color[0]},${color[1]},${color[2]}:\r\n`;
 				}
 			}
-
 		}
 		else {
 			cmd_str += 'G#I>0:s>5:k>0:T>1,1,1:\r\n';
@@ -796,7 +801,7 @@ const history = {
 		for (cmd of full_history) {
 			switch (cmd.action) {
 				case 'set_resolution':
-					cmd_str += `G#R>${cmd.params.resolution},${cmd.params.palette_flag}:\r\n`;
+					cmd_str += `G#R>${cmd.params.resolution},${cmd.params.sys_palette_flag}:\r\n`;
 					break;
 				// Need to redo the way I'm handling colors. Have to keep track of poly/line/fill/text.
 				case 'set_color':
@@ -903,7 +908,7 @@ const renderer = {
 	},
 	set_resolution: function(params) {
 		// For now we'll default to low rez.
-		set_resolution_palette('atari_st_low', params.palette_flag, starting_new=false);
+		set_resolution_palette('atari_st_low', params.palette_id, starting_new=false);
 	},
 	set_color: function(params) {
 		// Manually trigger a click on the color we're choosing so it will be selected in the interface
@@ -912,7 +917,7 @@ const renderer = {
 		// set_color(params.color, context, 1);
 	},
 	change_color: function(params) {
-		change_palette_color(params.index, [params.r, params.g, params.b]);
+		change_palette_color(context, params.index, [params.r, params.g, params.b]);
 	},
 	change_drawing_mode: function(params) {
 		// Manually trigger a click on the drawing mode we're choosing so it will be selected in the interface
@@ -1507,18 +1512,46 @@ document.querySelector('#show-overlay').addEventListener('click', function(event
 
 
 
+function update_canvas_colors(ctx, old_color_rgb, new_color_rgb) {
+	const w = ctx.canvas.height;
+	const h = ctx.canvas.width;
+
+	let image_data = context.getImageData(0, 0, w, h);
+
+	for (var i=0; i<image_data.data.length; i+=4) {
+		// If pixel has old color, change it to the new color
+		if (
+			image_data.data[i] == old_color_rgb[0] &&
+			image_data.data[i+1] == old_color_rgb[1] &&
+			image_data.data[i+2] == old_color_rgb[2]
+		) {
+			image_data.data[i] = new_color_rgb[0];
+			image_data.data[i+1] = new_color_rgb[1];
+			image_data.data[i+2] = new_color_rgb[2];
+		}
+	}
+	// Update the canvas with revised data
+	ctx.putImageData(image_data, 0, 0);
+
+}
 
 
 
+function change_palette_color(ctx, current_color_index, new_color_array) {
+	const old_color_array = current_palette[current_color_index];
+	const old_color_rgb = atari_to_rgb(old_color_array);
+	const new_color_rgb = atari_to_rgb(new_color_array);
 
-function change_palette_color(current_color_index, color_array) {
-	current_palette[current_color_index] = color_array;
+	update_canvas_colors(ctx, old_color_rgb, new_color_rgb);
 
-	const color_rgb = atari_to_rgb(color_array);
-	const color_str = `rgb(${color_rgb[0]}, ${color_rgb[1]}, ${color_rgb[2]})`;
+	current_palette[current_color_index] = new_color_array;
+
+	const new_color_str = `rgb(${new_color_rgb[0]}, ${new_color_rgb[1]}, ${new_color_rgb[2]})`;
 
 	// Set color values in CSS variables
-	root.style.setProperty(`--palette-color-${current_color_index}`, color_str);
+	root.style.setProperty(`--palette-color-${current_color_index}`, new_color_str);
+
+	// set_color(current_color_index, ctx);
 
 }
 
