@@ -6,7 +6,7 @@ let canvas_height = parseInt(root_style.getPropertyValue('--canvas-height'));
 let scale_factor = parseInt(root_style.getPropertyValue('--scale-factor'));
 let loupe_size = parseInt(root_style.getPropertyValue('--loupe-size'));
 
-let debug_flag = false;
+let debug_flag = true;
 
 let current_tool = null;
 let current_state = null;
@@ -390,9 +390,10 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// SET UP CANVAS CLICK HANDLERS
 	canvasContainer.addEventListener('click', function(event) {
+		event.stopPropagation();
+		event.preventDefault();
 		if (current_tool !== null) {
-			debug(`Event Listener: Click  |  Tool: ${current_tool}`);
-			debug(`Event Listener: Click  |  State: ${current_state}`);
+			debug(`Event Listener: Click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 			tool_functions[current_tool].onclick(event);
 		}
 		return false;
@@ -406,9 +407,8 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	// // SET UP CANVAS DOUBLE CLICK HANDLERS
 	// canvasContainer.addEventListener('dblclick', function(event) {
 	// 	if (current_tool !== null) {
-	// 		console.log(`Event Listener: Double-click  |  Tool: ${current_tool}`);
-	// 		debug(`Event Listener: Double-click  |  Tool: ${current_tool}`);
-	// 		debug(`Event Listener: Double-click  |  State: ${current_state}`);
+	// 		console.log(`Event Listener: Double-click\t|\tTool: ${current_tool}`);
+	// 		debug(`Event Listener: Double-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 	// 		tool_functions[current_tool].ondblclick(event);
 	// 	}
 	// 	return false;
@@ -416,10 +416,10 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// SET UP CANVAS RIGHT-CLICK HANDLERS
 	canvasContainer.addEventListener('contextmenu', function(event) {
+		event.stopPropagation();
 		event.preventDefault();
 		if (current_tool !== null) {
-			debug(`Event Listener: Click  |  Tool: ${current_tool}`);
-			debug(`Event Listener: Click  |  State: ${current_state}`);
+			debug(`Event Listener: Right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 			tool_functions[current_tool].onrightclick(event);
 		}
 		return false;
@@ -436,8 +436,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 			if (px <= canvas_width && py <= canvas_height) {
 				if (current_tool !== null) {
-					debug(`Event Listener: Click  |  Tool: ${current_tool}`);
-					debug(`Event Listener: Click  |  State: ${current_state}`);
+					debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 					tool_functions[current_tool].mousemove(event);
 				}
 			}
@@ -884,6 +883,7 @@ const renderer = {
 		clearCanvas(context, canvas, `rgb(${canvas_bg_rgb[0]}, ${canvas_bg_rgb[1]}, ${canvas_bg_rgb[2]})`);
 	},
 	render: function() {
+		debug('!!! RENDER() BEGIN');
 		// Set state as rendering
 		current_state = 'rendering';
 
@@ -901,6 +901,7 @@ const renderer = {
 		renderer[history.present.action](history.present.params);
 		// Reset state
 		current_state = 'start';
+		debug('!!! RENDER() END');
 	},
 	update_tool: function(tool_name) {
 		document.querySelector('.widget-tools select').value = tool_name;
@@ -1021,8 +1022,7 @@ const renderer = {
 const tool_functions = {
 	draw_point: {
 		onclick: function(event) {
-			debug(`draw_point click  |  Tool: ${current_tool}`);
-			debug(`draw_point click  |  State: ${current_state}`);
+			debug(`draw_point click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let [px, py] = checkBounds(context, event.layerX, event.layerY);
 
@@ -1056,8 +1056,7 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			debug(`draw_point mousemove  |  Tool: ${current_tool}`);
-			debug(`draw_point mousemove  |  State: ${current_state}`);
+			debug(`draw_point mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let px = event.layerX;
 			let py = event.layerY;
@@ -1073,8 +1072,7 @@ const tool_functions = {
 	},
 	draw_line: {
 		onclick: function(event) {
-			debug(`draw_line click  |  Tool: ${current_tool}`);
-			debug(`draw_line click  |  State: ${current_state}`);
+			debug(`draw_line click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let [px, py] = checkBounds(context, event.layerX, event.layerY);
 
@@ -1129,8 +1127,7 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			debug(`draw_line mousemove  |  Tool: ${current_tool}`);
-			debug(`draw_line mousemove  |  State: ${current_state}`);
+			debug(`draw_line mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let px = event.layerX;
 			let py = event.layerY;
@@ -1160,8 +1157,7 @@ const tool_functions = {
 	draw_polyline: {
 		points: [],
 		onclick: function(event) {
-			debug(`draw_polyline click  |  Tool: ${current_tool}`);
-			debug(`draw_polyline click  |  State: ${current_state}`);
+			debug(`draw_polyline click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let [px, py] = checkBounds(context, event.layerX, event.layerY);
 
@@ -1191,8 +1187,7 @@ const tool_functions = {
 		// }, 
 		// When we see a right click, that's the end of this polyline.
 		onrightclick: function(event) {
-			debug(`draw_polyline right-click  |  Tool: ${current_tool}`);
-			debug(`draw_polyline right-click  |  State: ${current_state}`);
+			debug(`draw_polyline right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			// Clear live-drawing canvas
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
@@ -1221,8 +1216,7 @@ const tool_functions = {
 
 		},
 		mousemove: function(event) {
-			debug(`draw_polyline mousemove  |  Tool: ${current_tool}`);
-			debug(`draw_polyline mousemove  |  State: ${current_state}`);
+			debug(`draw_polyline mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let px = event.layerX;
 			let py = event.layerY;
@@ -1255,8 +1249,8 @@ const tool_functions = {
 	draw_rect: {
 		points: [],
 		onclick: function(event) {
-			debug(`draw_rect click  |  Tool: ${current_tool}`);
-			debug(`draw_rect click  |  State: ${current_state}`);
+			console.log(event);
+			debug(`draw_rect click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			const [px, py] = checkBounds(context, event.layerX, event.layerY);
 
@@ -1273,9 +1267,6 @@ const tool_functions = {
 
 			// Drawing state means second click. Time to draw the rect.
 			else if (current_state == 'drawing') {
-				// Draw the line
-				debug(origin_x, origin_y, px, py);
-
 				// We're not going to add all four points, but just the origin and the extent.
 				tool_functions.draw_rect.points.push([px,py]);
 
@@ -1293,22 +1284,21 @@ const tool_functions = {
 					}
 				});
 
-				// Redraw everything
-				renderer.render();
-
 				// Reset all variables
-				origin_x = px;
-				origin_y = py;
+				origin_x = null;
+				origin_y = null;
 				tool_functions.draw_rect.points = [];
 				current_state = 'start';
+
+				// Redraw everything
+				renderer.render();
 			}
 		},
 		// ondblclick: function(event) {
 		// }, 
 		// When we see a right click, we need to cancel the rectangle.
 		onrightclick: function(event) {
-			debug(`draw_rect right-click  |  Tool: ${current_tool}`);
-			debug(`draw_rect right-click  |  State: ${current_state}`);
+			debug(`draw_rect right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			const [px, py] = checkBounds(context, event.layerX, event.layerY);
 
@@ -1327,8 +1317,7 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			debug(`draw_rect mousemove  |  Tool: ${current_tool}`);
-			debug(`draw_rect mousemove  |  State: ${current_state}`);
+			debug(`draw_rect mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			const px = event.layerX;
 			const py = event.layerY;
@@ -1354,8 +1343,7 @@ const tool_functions = {
 	draw_polygon: {
 		points: [],
 		onclick: function(event) {
-			debug(`draw_polygon click  |  Tool: ${current_tool}`);
-			debug(`draw_polygon click  |  State: ${current_state}`);
+			debug(`draw_polygon click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let [px, py] = checkBounds(context, event.layerX, event.layerY);
 
@@ -1390,8 +1378,7 @@ const tool_functions = {
 		// }, 
 		// When we see a right click, it's time to close this polygon.
 		onrightclick: function(event) {
-			debug(`draw_polygon right-click  |  Tool: ${current_tool}`);
-			debug(`draw_polygon right-click  |  State: ${current_state}`);
+			debug(`draw_polygon right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			const [px, py] = checkBounds(context, event.layerX, event.layerY);
 
@@ -1428,8 +1415,7 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			debug(`draw_polygon mousemove  |  Tool: ${current_tool}`);
-			debug(`draw_polygon mousemove  |  State: ${current_state}`);
+			debug(`draw_polygon mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let px = event.layerX;
 			let py = event.layerY;
@@ -1648,8 +1634,8 @@ function pixel_color_to_word32(ctx, x, y) {
 // Also checks drawing mode to check if "empty" pattern pixels 
 // will render as color 0, or as transparent/
 function fill_pixel(ctx, x, y) {
-	debug(`------------------------------`);
-	debug(`fill_pixel | x: ${x}, y: ${y}`);
+	// debug(`------------------------------`);
+	// debug(`fill_pixel | x: ${x}, y: ${y}`);
 	let px, py;
 	let end_idx = current_pattern.array.length;
 
@@ -1662,7 +1648,7 @@ function fill_pixel(ctx, x, y) {
 	}
 	else { py = y; }
 
-	debug(`fill_pixel | px: ${px}, py: ${py}`);
+	// debug(`fill_pixel | px: ${px}, py: ${py}`);
 
 	if (current_pattern.array[py][px] == 1) {
 		set_pixel(ctx, x, y);
