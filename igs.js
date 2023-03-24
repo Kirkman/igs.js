@@ -314,6 +314,8 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// Populate the color picker with all possible Atari colors.	
 	const color_picker_inputs = document.querySelector('.widget-color-picker .palette-squares');
+	// First, empty any existing buttons
+	color_picker_inputs.replaceChildren();
 	for (let g=0; g<8; g++) {
 		for (let b=0; b<8; b++) {
 			for (let r=0; r<8; r++) {
@@ -322,7 +324,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			}
 		}
 	}
-
 
 	// Click handlers for the 512 tiny color palette squares. Clicking one will update the color picker.
 	document.querySelectorAll('.widget-color-picker .palette-squares .palette-square').forEach((elem)=> {
@@ -372,22 +373,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}
 
 
-	// Set a pointer to the chosen color pattern
-	current_pattern = fill_patterns[1];
-
-	// Set up patterns widget
-	for (let i=0; i<fill_patterns.length; i++) {
-		let pattern_obj = fill_patterns[i];
-
-		// This requires the use of my custom "Atari Patterns" fontset.
-		// Also, for maximum cross-platform compatibility, requires select to be set to "multiple" rather than typical dropdown.
-		let icon_code = (59392 + i).toString(16);
-
-		let widget = document.querySelector('.widget-patterns select');
-		widget.insertAdjacentHTML('beforeend', `
-			<option class="pattern-option pattern-${i}" value="${i}">&#x${icon_code}; ${pattern_obj.name}</option>
-		`);
-	}
 
 
 	let canvas_bg_rgb = atari_to_rgb(current_palette[0]);
@@ -516,9 +501,32 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}, false);
 
 
+
+	// Set a pointer to the chosen color pattern
+	current_pattern = fill_patterns[1];
+
+	// Set up patterns widget
+	const pattern_select = document.querySelector('.widget-patterns select');
+
+	// First, empty any existing buttons
+	pattern_select.replaceChildren();
+
+	for (let i=0; i<fill_patterns.length; i++) {
+		let pattern_obj = fill_patterns[i];
+
+		// This requires the use of my custom "Atari Patterns" fontset.
+		// Also, for maximum cross-platform compatibility, requires select to be set to "multiple" rather than typical dropdown.
+		let icon_code = (59392 + i).toString(16);
+
+		pattern_select.insertAdjacentHTML('beforeend', `
+			<option class="pattern-option pattern-${i}" value="${i}">&#x${icon_code}; ${pattern_obj.name}</option>
+		`);
+	}
+
+
+
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
-	const pattern_select = document.querySelector('.widget-patterns select');
 	if (!pattern_select.hasAttribute('hasChangeHandler')) {
 		// Change handler for pattern widget
 		pattern_select.addEventListener('change', function(event) {
@@ -634,15 +642,16 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 
 // Keydown handler for Cmd/Ctrl-Z (undo) and Shift-Cmd/Ctrl-Z (redo)
-window.addEventListener('keydown', function(evt) {
-	evt.stopImmediatePropagation();
+window.addEventListener('keydown', function(event) {
+	event.preventDefault();
+	event.stopImmediatePropagation();
 	// REDO
-	if ((evt.key === 'Z' || evt.key === 'z') && (evt.ctrlKey || evt.metaKey) && evt.shiftKey) {
+	if ((event.key === 'Z' || event.key === 'z') && (event.ctrlKey || event.metaKey) && event.shiftKey) {
 		history.redo();
 		renderer.render();
 	}
 	// UNDO
-	else if ((evt.key === 'Z' || evt.key === 'z') && (evt.ctrlKey || evt.metaKey)) {
+	else if ((event.key === 'Z' || event.key === 'z') && (event.ctrlKey || event.metaKey)) {
 		history.undo();
 		renderer.render();
 	}
