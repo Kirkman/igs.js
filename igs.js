@@ -6,7 +6,7 @@ let canvas_height = parseInt(root_style.getPropertyValue('--canvas-height'));
 let scale_factor = parseInt(root_style.getPropertyValue('--scale-factor'));
 let loupe_size = parseInt(root_style.getPropertyValue('--loupe-size'));
 
-let debug_flag = true;
+let debug_flag = false;
 
 let current_tool = null;
 let current_state = null;
@@ -180,6 +180,20 @@ button_start.addEventListener('click', function(event) {
 });
 
 
+// ------------------------
+// NOTE ABOUT THIS FUNCTION
+// ------------------------
+// It seems really dumb to be creating all those event handlers inside this function.
+// I did it that way originally because I can't create these elements 
+// until I know which resolution and which color palette we're using. 
+//
+// But since we replay the entire history stack every time we run renderer.render(),
+// these click handlers were bound repeatedly, leading to a cascade of duplicate events.
+//
+// For now, I have fixed this by wrapping each addEventListener() with a check
+// to ensure we don't bind multiple times. Still, there must be a better way.
+// ------------------------
+
 // Set the screen resolution, and the color palette, either from user-defined selections, or from data from a loaded file.
 function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
@@ -242,46 +256,57 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// Click handlers for color palette buttons
 	document.querySelectorAll('.widget-colors .palette-button').forEach((elem)=> {
-		elem.addEventListener('click', function(event) {
-			if (this.value !== null) {
-				// Once a tool has been chosen, let's removing pulsing circle.
-				document.querySelector('.pulse-container').classList.remove('color-unset');
 
-				current_color_index = parseInt(this.value);
-				debug(`Event Listener: Colors change  |  Color idx: ${current_color_index}`);
-				// Toggle the active class on the buttons
-				document.querySelectorAll('.widget-colors .palette-button').forEach((button)=> {
-					button.classList.remove('active');
-				});
-				this.classList.add('active');
+		// These outer .hasAttribute() checks ensure we don't re-bind this event
+		// when we render or replay the history (which can cascade).
+		if (!elem.hasAttribute('hasClickHandler')) {
+			elem.addEventListener('click', function(event) {
+				if (this.value !== null) {
+					// Once a tool has been chosen, let's removing pulsing circle.
+					document.querySelector('.pulse-container').classList.remove('color-unset');
 
-				if (current_state !== 'rendering') {
-					// Add this action to our history stack.
-					history.add({
-						action: 'set_color',
-						params: {
-							color: current_color_index,
-						}
+					current_color_index = parseInt(this.value);
+					// debug(`Event Listener: Colors change  |  Color idx: ${current_color_index}`);
+					// Toggle the active class on the buttons
+					document.querySelectorAll('.widget-colors .palette-button').forEach((button)=> {
+						button.classList.remove('active');
 					});
-				}
-				set_color(current_color_index, context);
+					this.classList.add('active');
 
-			} // end if
-		}); // end click handler
+					if (current_state !== 'rendering') {
+						// Add this action to our history stack.
+						history.add({
+							action: 'set_color',
+							params: {
+								color: current_color_index,
+							}
+						});
+					}
+					set_color(current_color_index, context);
 
-		elem.addEventListener('dblclick', function(event) {
-			// Configure the color picker so the existing color is pre-set.
-			const this_color_index = parseInt(this.value);
-			const color_atari = current_palette[this_color_index];
-			document.querySelector('#picker-red').value = color_atari[0];
-			document.querySelector('#picker-green').value = color_atari[1];
-			document.querySelector('#picker-blue').value = color_atari[2];
-			document.querySelector('#picker-red').dispatchEvent(new Event('input'));
+				} // end if
+			}); // end click handler
+			elem.setAttribute('hasClickHandler', 'true');
+		}
 
-			// Display the modal
-			document.querySelector('.modal-wrapper').classList.remove('hidden');
-			document.querySelector('.widget-color-picker').classList.remove('hidden');
-		}); // end click handler
+		// These outer .hasAttribute() checks ensure we don't re-bind this event
+		// when we render or replay the history (which can cascade).
+		if (!elem.hasAttribute('hasDblClickHandler')) {
+			elem.addEventListener('dblclick', function(event) {
+				// Configure the color picker so the existing color is pre-set.
+				const this_color_index = parseInt(this.value);
+				const color_atari = current_palette[this_color_index];
+				document.querySelector('#picker-red').value = color_atari[0];
+				document.querySelector('#picker-green').value = color_atari[1];
+				document.querySelector('#picker-blue').value = color_atari[2];
+				document.querySelector('#picker-red').dispatchEvent(new Event('input'));
+
+				// Display the modal
+				document.querySelector('.modal-wrapper').classList.remove('hidden');
+				document.querySelector('.widget-color-picker').classList.remove('hidden');
+			}); // end click handler
+			elem.setAttribute('hasDblClickHandler', 'true');
+		}
 
 
 	});
@@ -301,39 +326,50 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// Click handlers for the 512 tiny color palette squares. Clicking one will update the color picker.
 	document.querySelectorAll('.widget-color-picker .palette-squares .palette-square').forEach((elem)=> {
-		elem.addEventListener('click', function(event) {
-			document.querySelector('#picker-red').value = parseInt(this.getAttribute('data-r'));
-			document.querySelector('#picker-green').value = parseInt(this.getAttribute('data-g'));
-			document.querySelector('#picker-blue').value = parseInt(this.getAttribute('data-b'));
-			document.querySelector('#picker-red').dispatchEvent(new Event('input'));
-		}); // end click handler
+		// These outer .hasAttribute() checks ensure we don't re-bind this event
+		// when we render or replay the history (which can cascade).
+		if (!elem.hasAttribute('hasClickHandler')) {
+			elem.addEventListener('click', function(event) {
+				document.querySelector('#picker-red').value = parseInt(this.getAttribute('data-r'));
+				document.querySelector('#picker-green').value = parseInt(this.getAttribute('data-g'));
+				document.querySelector('#picker-blue').value = parseInt(this.getAttribute('data-b'));
+				document.querySelector('#picker-red').dispatchEvent(new Event('input'));
+			}); // end click handler
+			elem.setAttribute('hasClickHandler', 'true');
+		}
 	});
 
 	// Click handler for use-this-color button
-	document.querySelector('.color-choose').addEventListener('click', function(event) {
-		const r = parseInt(document.querySelector('#picker-red').value);
-		const g = parseInt(document.querySelector('#picker-green').value);
-		const b = parseInt(document.querySelector('#picker-blue').value);
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	const color_choose_button = document.querySelector('.color-choose');
+	if (!color_choose_button.hasAttribute('hasClickHandler')) {
+		color_choose_button.addEventListener('click', function(event) {
+			const r = parseInt(document.querySelector('#picker-red').value);
+			const g = parseInt(document.querySelector('#picker-green').value);
+			const b = parseInt(document.querySelector('#picker-blue').value);
 
-		// change_palette_color(context, current_color_index, [r,g,b]);
+			// change_palette_color(context, current_color_index, [r,g,b]);
 
-		if (current_state !== 'rendering') {
-			// Add this action to our history stack.
-			history.add({
-				action: 'change_color',
-				params: {
-					index: current_color_index,
-					r: r,
-					g: g,
-					b: b,
-				}
-			});
-		}
+			if (current_state !== 'rendering') {
+				// Add this action to our history stack.
+				history.add({
+					action: 'change_color',
+					params: {
+						index: current_color_index,
+						r: r,
+						g: g,
+						b: b,
+					}
+				});
+			}
 
-		// Close the modal
-		document.querySelector('.modal-wrapper').classList.add('hidden');
-		document.querySelector('.widget-color-picker').classList.add('hidden');
-	});
+			// Close the modal
+			document.querySelector('.modal-wrapper').classList.add('hidden');
+			document.querySelector('.widget-color-picker').classList.add('hidden');
+		});
+		color_choose_button.setAttribute('hasClickHandler', 'true');
+	}
 
 
 	// Set a pointer to the chosen color pattern
@@ -388,69 +424,78 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	clearCanvas(loupeContext, loupeCanvas, 'rgba(255,255,255,0)');
 
 
-	// SET UP CANVAS CLICK HANDLERS
-	canvasContainer.addEventListener('click', function(event) {
-		event.stopPropagation();
-		event.preventDefault();
-		if (current_tool !== null) {
-			debug(`Event Listener: Click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			tool_functions[current_tool].onclick(event);
-		}
-		return false;
-	}, false);
+	// CANVAS EVENT HANDLERS
+	// ---------------------
 
-	// AN APPROACH FOR DISAMBIGUATING CLICK FROM DOUBLE-CLICK CAN BE FOUND HERE:
-	// https://stackoverflow.com/a/60177326/566307
-	// ... it works well, but after trying it, I find the delay unacceptable. 
-	// Going to have to live without double-click for completing polylines/polygons.
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	if (!canvasContainer.hasAttribute('hasClickHandler')) {
+		// CANVAS CLICK HANDLER
+		canvasContainer.addEventListener('click', function(event) {
+			event.stopPropagation();
+			event.preventDefault();
+			if (current_tool !== null) {
+				debug(`Event Listener: Click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+				tool_functions[current_tool].onclick(event);
+			}
+			return false;
+		}, false);
+		canvasContainer.setAttribute('hasClickHandler', 'true');
+	}
 
-	// // SET UP CANVAS DOUBLE CLICK HANDLERS
-	// canvasContainer.addEventListener('dblclick', function(event) {
-	// 	if (current_tool !== null) {
-	// 		console.log(`Event Listener: Double-click\t|\tTool: ${current_tool}`);
-	// 		debug(`Event Listener: Double-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-	// 		tool_functions[current_tool].ondblclick(event);
-	// 	}
-	// 	return false;
-	// }, false);
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	if (!canvasContainer.hasAttribute('hasRightClickHandler')) {
+		// CANVAS RIGHT-CLICK HANDLER
+		canvasContainer.addEventListener('contextmenu', function(event) {
+			event.stopPropagation();
+			event.preventDefault();
+			if (current_tool !== null) {
+				debug(`Event Listener: Right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+				tool_functions[current_tool].onrightclick(event);
+			}
+			return false;
+		}, false);
+		canvasContainer.setAttribute('hasRightClickHandler', 'true');
+	}
 
-	// SET UP CANVAS RIGHT-CLICK HANDLERS
-	canvasContainer.addEventListener('contextmenu', function(event) {
-		event.stopPropagation();
-		event.preventDefault();
-		if (current_tool !== null) {
-			debug(`Event Listener: Right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			tool_functions[current_tool].onrightclick(event);
-		}
-		return false;
-	}, false);
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	if (!canvasContainer.hasAttribute('hasMouseMoveHandler')) {
+		// CANVAS MOUSEMOVE HANDLER
+		// NEED TO REFACTOR ALL THIS TO CONVERT ACTUAL SCREEN COORDS TO CANVAS COORDINATES
+		// (rather than use CSS to scale up, which makes mouse transitions from
+		// the canvas back to the rest of the UI become weird)
+		canvasContainer.addEventListener('mousemove', function(event) {
+			if (current_tool !== 'rendering') {
+				const px = event.layerX;
+				const py = event.layerY;
 
-
-	// NEED TO REFACTOR ALL THIS TO CONVERT ACTUAL SCREEN COORDS TO CANVAS COORDINATES
-	// (rather than use CSS to scale up, which makes mouse transitions from
-	// the canvas back to the rest of the UI become weird)
-	canvasContainer.addEventListener('mousemove', function(event) {
-		if (current_tool !== 'rendering') {
-			const px = event.layerX;
-			const py = event.layerY;
-
-			if (px <= canvas_width && py <= canvas_height) {
-				if (current_tool !== null) {
-					debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-					tool_functions[current_tool].mousemove(event);
+				if (px <= canvas_width && py <= canvas_height) {
+					if (current_tool !== null) {
+						debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+						tool_functions[current_tool].mousemove(event);
+					}
+				}
+				else {
+					update_status(null,null);
 				}
 			}
-			else {
-				update_status(null,null);
-			}
-		}
-		return false;
-	}, false);
+			return false;
+		}, false);
+		canvasContainer.setAttribute('hasMouseMoveHandler', 'true');
+	}
 
-	canvasContainer.addEventListener('mouseout', function(event) {
-		update_status(null,null);
-		return false;
-	}, false);
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	if (!canvasContainer.hasAttribute('hasMouseOutHandler')) {
+		// CANVAS MOUSEOUT HANDLER
+		canvasContainer.addEventListener('mouseout', function(event) {
+			update_status(null,null);
+			return false;
+		}, false);
+		canvasContainer.setAttribute('hasMouseOutHandler', 'true');
+	}
 
 
 
@@ -471,87 +516,107 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}, false);
 
 
-	// Change handler for pattern widget
-	document.querySelector('.widget-patterns select').addEventListener('change', function(event) {
-		// In order to show the pattern icons on all browsers, we're using the multi-select interface.
-		// But we don't want to allow multiple selections. So check if someone *did* do multiple selections.
-		if (this.selectedOptions.length > 1) {
-			let wanted_opt = current_pattern.id;
-			for (let opt of this.selectedOptions) {
-				if (parseInt(opt.value) != parseInt(current_pattern.id)) {
-					wanted_opt = parseInt(opt.value);
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	const pattern_select = document.querySelector('.widget-patterns select');
+	if (!pattern_select.hasAttribute('hasChangeHandler')) {
+		// Change handler for pattern widget
+		pattern_select.addEventListener('change', function(event) {
+			// In order to show the pattern icons on all browsers, we're using the multi-select interface.
+			// But we don't want to allow multiple selections. So check if someone *did* do multiple selections.
+			if (this.selectedOptions.length > 1) {
+				let wanted_opt = current_pattern.id;
+				for (let opt of this.selectedOptions) {
+					if (parseInt(opt.value) != parseInt(current_pattern.id)) {
+						wanted_opt = parseInt(opt.value);
+					}
 				}
+				this.value = wanted_opt;
 			}
-			this.value = wanted_opt;
-		}
 
 
-		// Set global current_pattern to new value.
-		const new_pattern_index = parseInt(this.value);
-		current_pattern = fill_patterns[new_pattern_index];
+			// Set global current_pattern to new value.
+			const new_pattern_index = parseInt(this.value);
+			current_pattern = fill_patterns[new_pattern_index];
 
-		if (current_state !== 'rendering') {
-			// Add this action to our history stack.
-			history.add({
-				action: 'change_pattern',
-				params: {
-					pattern: current_pattern.slug,
-					border_flag: border_flag
-				}
-			});
-		}
+			if (current_state !== 'rendering') {
+				// Add this action to our history stack.
+				history.add({
+					action: 'change_pattern',
+					params: {
+						pattern: current_pattern.slug,
+						border_flag: border_flag
+					}
+				});
+			}
 
-		debug(`Event Listener: patterns change  |  pattern: ${current_pattern.name}`);
+			// debug(`Event Listener: patterns change  |  pattern: ${current_pattern.name}`);
 
-	});
-
-	// Change handler for fill-border input
-	document.querySelector('#fill-border').addEventListener('change', function(event) {
-		// Set global border_flag to new value.
-		const current_fill_border_flag = this.checked;
+		});
+		pattern_select.setAttribute('hasChangeHandler', 'true');
+	}
 
 
-		if (current_fill_border_flag == true || current_fill_border_flag == 'true') {
-			border_flag = 1;
-		}
-		else {
-			border_flag = 0;
-		}
-
-		if (current_state !== 'rendering') {
-			// Add this action to our history stack.
-			history.add({
-				action: 'change_pattern',
-				params: {
-					pattern: current_pattern.slug,
-					border_flag: border_flag
-				}
-			});
-		}
-
-		debug(`Event Listener: border_flag change  |  flag: ${border_flag}`);
-
-	});
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	const border_flag_input = document.querySelector('#fill-border');
+	if (!border_flag_input.hasAttribute('hasChangeHandler')) {
+		// Change handler for fill-border input
+		border_flag_input.addEventListener('change', function(event) {
+			// Set global border_flag to new value.
+			const current_fill_border_flag = this.checked;
 
 
-	// Change handler for pattern widget
-	document.querySelector('.widget-drawing-mode select').addEventListener('change', function(event) {
-		// Set global current_pattern to new value.
-		current_drawing_mode = parseInt(this.value);
+			if (current_fill_border_flag == true || current_fill_border_flag == 'true') {
+				border_flag = 1;
+			}
+			else {
+				border_flag = 0;
+			}
 
-		if (current_state !== 'rendering') {
-			// Add this action to our history stack.
-			history.add({
-				action: 'change_drawing_mode',
-				params: {
-					mode: current_drawing_mode,
-				}
-			});
-		}
+			if (current_state !== 'rendering') {
+				// Add this action to our history stack.
+				history.add({
+					action: 'change_pattern',
+					params: {
+						pattern: current_pattern.slug,
+						border_flag: border_flag
+					}
+				});
+			}
 
-		debug(`Event Listener: drawing mode change  |  mode: ${current_drawing_mode}`);
+			// debug(`Event Listener: border_flag change  |  flag: ${border_flag}`);
 
-	});
+		});
+		border_flag_input.setAttribute('hasChangeHandler', 'true');
+	}
+
+
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	const drawing_mode_select = document.querySelector('.widget-drawing-mode select');
+	if (!drawing_mode_select.hasAttribute('hasChangeHandler')) {
+		// Change handler for pattern widget
+		drawing_mode_select.addEventListener('change', function(event) {
+			// Set global current_pattern to new value.
+			current_drawing_mode = parseInt(this.value);
+
+			if (current_state !== 'rendering') {
+				// Add this action to our history stack.
+				history.add({
+					action: 'change_drawing_mode',
+					params: {
+						mode: current_drawing_mode,
+					}
+				});
+			}
+
+			// debug(`Event Listener: drawing mode change  |  mode: ${current_drawing_mode}`);
+
+		});
+		drawing_mode_select.setAttribute('hasChangeHandler', 'true');
+	}
+
 
 
 	// Manually change the mode menu to select "Replace" as the default.
@@ -565,25 +630,23 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	document.querySelector('.widget-patterns select').dispatchEvent(new Event('change'));
 
 
-
-	// Keydown handler for Cmd/Ctrl-Z (undo) and Shift-Cmd/Ctrl-Z (redo)
-	window.addEventListener('keydown', function(evt) {
-		evt.stopImmediatePropagation();
-		// REDO
-		if ((evt.key === 'Z' || evt.key === 'z') && (evt.ctrlKey || evt.metaKey) && evt.shiftKey) {
-			history.redo();
-			renderer.render();
-		}
-		// UNDO
-		else if ((evt.key === 'Z' || evt.key === 'z') && (evt.ctrlKey || evt.metaKey)) {
-			history.undo();
-			renderer.render();
-		}
-	});
-
 }
 
 
+// Keydown handler for Cmd/Ctrl-Z (undo) and Shift-Cmd/Ctrl-Z (redo)
+window.addEventListener('keydown', function(evt) {
+	evt.stopImmediatePropagation();
+	// REDO
+	if ((evt.key === 'Z' || evt.key === 'z') && (evt.ctrlKey || evt.metaKey) && evt.shiftKey) {
+		history.redo();
+		renderer.render();
+	}
+	// UNDO
+	else if ((evt.key === 'Z' || evt.key === 'z') && (evt.ctrlKey || evt.metaKey)) {
+		history.undo();
+		renderer.render();
+	}
+});
 
 
 
@@ -884,6 +947,8 @@ const renderer = {
 	},
 	render: function() {
 		debug('!!! RENDER() BEGIN');
+		debug(`   - history.past.length: ${history.past.length}`);
+
 		// Set state as rendering
 		current_state = 'rendering';
 
@@ -891,6 +956,7 @@ const renderer = {
 		for (let i=0; i<history.past.length; i++) {
 			const cmd = history.past[i];
 
+			debug(`   - ${cmd.action}`);
 			renderer[cmd.action](cmd.params);
 
 			if (i == 0 && cmd.action == 'set_resolution') {
@@ -1249,7 +1315,6 @@ const tool_functions = {
 	draw_rect: {
 		points: [],
 		onclick: function(event) {
-			console.log(event);
 			debug(`draw_rect click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			const [px, py] = checkBounds(context, event.layerX, event.layerY);
@@ -1464,8 +1529,7 @@ document.querySelector('.widget-tools select').addEventListener('change', functi
 	}
 
 	if (current_tool !== null) {
-		debug(`Event Listener: Tools change  |  Tool: ${current_tool}`);
-		debug(`Event Listener: Tools change  |  State: ${current_state}`);
+		debug(`Event Listener: Tools change\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 	}
 
 });
