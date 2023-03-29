@@ -7,6 +7,8 @@ let scale_factor = parseInt(root_style.getPropertyValue('--scale-factor'));
 let loupe_size = parseInt(root_style.getPropertyValue('--loupe-size'));
 
 let debug_flag = false;
+let mouse_is_dragging = false;
+let mouse_is_down = false;
 
 let current_tool = null;
 let current_state = null;
@@ -419,7 +421,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		canvasContainer.addEventListener('click', function(event) {
 			event.stopPropagation();
 			event.preventDefault();
-			if (current_tool !== null) {
+			if (current_tool !== null && current_tool.name !== 'Pencil') {
 				debug(`Event Listener: Click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 				tool_functions[current_tool].onclick(event);
 			}
@@ -427,6 +429,45 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		}, false);
 		canvasContainer.setAttribute('hasClickHandler', 'true');
 	}
+
+
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	if (!canvasContainer.hasAttribute('hasDragHandler')) {
+		// CANVAS MOUSEDOWN/MOUSEUP HANDLER - SPECIFICALLY FOR PENCIL
+		// Basically we have to watch for mousedown. If mousemove comes next, it's a drag.
+		// If not, and we record a mouseup, then treat it like a single click.
+		canvasContainer.addEventListener('mousedown', function(event) {
+			if (current_tool !== null && current_tool == 'draw_point') {
+				event.stopPropagation();
+				event.preventDefault();
+				mouse_is_down = true;
+				debug(`Event Listener: Mousedown\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
+			return false;
+		}, false);
+		canvasContainer.addEventListener('mouseup', function(event) {
+			if (current_tool !== null && current_tool == 'draw_point') {
+				event.stopPropagation();
+				event.preventDefault();
+				if (mouse_is_dragging == false) {
+					tool_functions[current_tool].onclick(event);
+					debug(`Event Listener: Mouseup\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+				}
+				if (mouse_is_dragging == true) {
+					tool_functions[current_tool].ondragend(event);
+				}
+
+			}
+			mouse_is_down = false;
+			mouse_is_dragging = false;
+			return false;
+		}, false);
+
+		canvasContainer.setAttribute('hasDragHandler', 'true');
+	}
+
+
 
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
@@ -460,6 +501,12 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 					if (current_tool !== null) {
 						debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 						tool_functions[current_tool].mousemove(event);
+					}
+					if (current_tool !== null && current_tool == 'draw_point') {
+						if (mouse_is_down == true) {
+							mouse_is_dragging = true;
+							tool_functions[current_tool].ondrag(event);
+						}
 					}
 				}
 				else {
@@ -1020,7 +1067,10 @@ const renderer = {
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 
 		// Draw the point
-		fill_pixel(context, params.points[0][0], params.points[0][1]);
+		for (point of params.points) {
+			fill_pixel(context, point[0], point[1]);
+		}
+
 	},
 	draw_line: function(params) {
 		this.update_tool('draw_line');
@@ -1096,6 +1146,7 @@ const renderer = {
 
 const tool_functions = {
 	draw_point: {
+		points: [],
 		onclick: function(event) {
 			debug(`draw_point click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -1143,7 +1194,60 @@ const tool_functions = {
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
 			update_status(px, py);
-		}
+		},
+		ondrag: function(event) {
+			if (current_state == 'start' || current_state == null) {
+				current_state = 'drawing';
+			}
+
+			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+
+			tool_functions.draw_point.points.push([px,py]);
+
+			// Clear live-drawing and cursor canvases
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+
+			// Draw the temporary points
+			set_color(current_color_index, liveContext, 1);
+			for (point of tool_functions.draw_point.points) {
+				fill_pixel(liveContext, point[0], point[1]);
+			}
+
+			draw_cursor(0, px, py);
+			update_loupe(px, py);
+			update_status(px, py);
+
+		},
+		ondragend: function(event) {
+			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+
+			tool_functions.draw_point.points.push([px,py]);
+
+			// Remove duplicate points from the array
+			tool_functions.draw_point.points = Array.from(new Set(tool_functions.draw_point.points.map(JSON.stringify)), JSON.parse);
+
+			// MAY WANT TO CONSIDER ALGORITHM TO CONVERT THESE POINTS INTO LINES/POLYLINES WHERE POSSIBLE
+
+			// Add this action to our history stack.
+			history.add({
+				action: 'draw_point',
+				params: {
+					color: current_color_index,
+					points: tool_functions.draw_point.points
+				}
+			});
+
+			// Redraw everything
+			renderer.render();
+
+			// Reset state and variables
+			origin_x = null;
+			origin_y = null;
+			tool_functions.draw_point.points = [];
+			current_state = 'start';
+		},
+
 	},
 	draw_line: {
 		onclick: function(event) {
