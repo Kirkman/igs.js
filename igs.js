@@ -1202,7 +1202,15 @@ const tool_functions = {
 
 			let [px, py] = checkBounds(context, event.layerX, event.layerY);
 
-			tool_functions.draw_point.points.push([px,py]);
+			let new_pixels = [[px, py]];
+			if (tool_functions.draw_point.points.length > 0) {
+				let origin = tool_functions.draw_point.points.at(-1);
+				new_pixels = getBresenhamLinePixels(context, origin[0], origin[1], px, py);
+			}
+
+			for (pixel of new_pixels) {
+				tool_functions.draw_point.points.push(pixel);
+			}
 
 			// Clear live-drawing and cursor canvases
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
