@@ -405,8 +405,8 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 
 	// Set up the loupe
-	loupeCanvas.width = 21;
-	loupeCanvas.height = 21;
+	loupeCanvas.width = loupe_size;
+	loupeCanvas.height = loupe_size;
 	disableSmoothing(loupeContext);
 	clearCanvas(loupeContext, loupeCanvas, 'rgba(255,255,255,0)');
 
