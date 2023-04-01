@@ -257,8 +257,12 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	buffer_horiz = buffer_size * scale_horiz;
 	buffer_vert = buffer_size * scale_vert;
 
-	// Set a pointer to the chosen color palette
-	current_palette = user_resolution.palettes[pal_id].colors;
+	// Get a reference to the chosen color palette
+	const user_colors = user_resolution.palettes[pal_id].colors;
+
+	// IMPORTANT: Use the spread operator so that we COPY these values.
+	// This will help us avoid modifying the original master resolution object.
+	current_palette = [...user_colors];
 	current_color_index = 0;
 
 	// Set up colors widget
@@ -306,19 +310,26 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		if (!elem.hasAttribute('hasClickHandler')) {
 			elem.addEventListener('click', function(event) {
 				if (this.value !== null) {
+					// Keep track of whether we actually changed the color, 
+					// or just clicked the same palette square again.
+					let color_change_flag = false;
+					if (current_color_index !== parseInt(this.value)) {
+						color_change_flag = true;
+					}
+
 					// Once a tool has been chosen, let's removing pulsing circle.
 					document.querySelector('.pulse-container').classList.remove('color-unset');
 
 					current_color_index = parseInt(this.value);
-					// debug(`Event Listener: Colors change  |  Color idx: ${current_color_index}`);
+
 					// Toggle the active class on the buttons
 					document.querySelectorAll('.widget-colors .palette-button').forEach((button)=> {
 						button.classList.remove('active');
 					});
 					this.classList.add('active');
 
-					if (current_state !== 'rendering') {
-						// Add this action to our history stack.
+					// Add this action to our history stack, if we actually changed colors.
+					if (current_state !== 'rendering' && color_change_flag == true) {
 						history.add({
 							action: 'set_color',
 							params: {
@@ -351,7 +362,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			}); // end click handler
 			elem.setAttribute('hasDblClickHandler', 'true');
 		}
-
 
 	});
 
@@ -408,6 +418,8 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 					}
 				});
 			}
+
+			renderer.render();
 
 			// Close the modal
 			document.querySelector('.modal-wrapper').classList.add('hidden');
@@ -1785,13 +1797,15 @@ function change_palette_color(ctx, current_color_index, new_color_array) {
 	const old_color_rgb = atari_to_rgb(old_color_array);
 	const new_color_rgb = atari_to_rgb(new_color_array);
 
+	// Update any pixels on canvas from old color to new color
 	update_canvas_colors(ctx, old_color_rgb, new_color_rgb);
 
+	// Update global palette with new RGB values for this palette position
 	current_palette[current_color_index] = new_color_array;
 
 	const new_color_str = `rgb(${new_color_rgb[0]}, ${new_color_rgb[1]}, ${new_color_rgb[2]})`;
 
-	// Set color values in CSS variables
+	// Update color values in CSS variables
 	root.style.setProperty(`--palette-color-${current_color_index}`, new_color_str);
 
 	// set_color(current_color_index, ctx);
