@@ -1,10 +1,22 @@
 // Root elements for manipulating styles
 const root = document.documentElement;
-const root_style = getComputedStyle(document.querySelector(':root'));
-let canvas_width = parseInt(root_style.getPropertyValue('--canvas-width'));
-let canvas_height = parseInt(root_style.getPropertyValue('--canvas-height'));
-let scale_factor = parseInt(root_style.getPropertyValue('--scale-factor'));
+let root_style = getComputedStyle(document.querySelector(':root'));
+
+let screen_width = parseInt(root_style.getPropertyValue('--screen-width'));
+let screen_height = parseInt(root_style.getPropertyValue('--screen-height'));
+
+let scale_horiz = parseInt(root_style.getPropertyValue('--horizontal-scale'));
+let scale_vert = parseInt(root_style.getPropertyValue('--vertical-scale'));
+
+let display_width;
+let display_height;
+
 let loupe_size = parseInt(root_style.getPropertyValue('--loupe-size'));
+
+let buffer_size = parseInt(root_style.getPropertyValue('--buffer-size'));
+
+let buffer_horiz;
+let buffer_vert;
 
 let debug_flag = false;
 let mouse_is_dragging = false;
@@ -27,7 +39,7 @@ let polygon_start_y = null;
 
 
 
-const canvasContainer = document.querySelector('.canvas-subcontainer');
+const display = document.querySelector('.mouse-target');
 
 const canvas = document.getElementById('paint-canvas');
 const context = canvas.getContext('2d', {willReadFrequently: true});
@@ -78,6 +90,25 @@ function disableSmoothing(ctx) {
 }
 
 
+// Take mouse coordinates and convert them to the virtual screen's coordinates
+function translate_to_screen(sx, sy) {
+	let px = Math.floor(sx/scale_horiz);
+	let py = Math.floor(sy/scale_vert);
+
+	// Subtract offset to account for buffer around the display area
+	px = px - buffer_size;
+	py = py - buffer_size;
+
+	// Let mouse go out-of-bounds in the buffer, but keep cursor within canvas
+	if (px < 0) { px = 0; }
+	if (py < 0) { py = 0; }
+	if (px > screen_width - 1) { px = screen_width - 1; }
+	if (py > screen_height - 1) { py = screen_height - 1; }
+
+	return [px, py];
+}
+
+
 const button_load = document.querySelector('.load-json');
 button_load.addEventListener('click', function(event) {
 
@@ -93,7 +124,7 @@ upload_input.addEventListener('change', function(event) {
 	document.querySelector('.modal-wrapper').classList.add('hidden');
 
 	// Show the drawing canvases
-	document.querySelector('.canvas-subcontainer').style.display = 'block';
+	document.querySelector('.display-subcontainer').style.display = 'block';
 
 	// Show the panes
 	document.querySelector('.pane.disabled').classList.remove('disabled');
@@ -168,7 +199,7 @@ button_start.addEventListener('click', function(event) {
 	document.querySelector('.step-2.create-new').classList.add('hidden');
 
 	// Show the drawing canvases
-	document.querySelector('.canvas-subcontainer').style.display = 'block';
+	document.querySelector('.display-subcontainer').style.display = 'block';
 
 	// Show the panes
 	document.querySelector('.pane.disabled').classList.remove('disabled');
@@ -202,16 +233,29 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	// Get the details of the user's chosen resolution
 	const user_resolution = resolutions.filter(elem => elem.slug == res_id)[0];
 
-	// Set canvas dimensions in CSS variable
-	root.style.setProperty(`--canvas-width`, user_resolution.width);
-	root.style.setProperty(`--canvas-height`, user_resolution.height);
+	// Set emulated screen resolution in CSS variable
+	root.style.setProperty(`--screen-width`, user_resolution.width);
+	root.style.setProperty(`--screen-height`, user_resolution.height);
+	screen_width = user_resolution.width;
+	screen_height = user_resolution.height;
 
 	// Atari medium has double the horizontal pixels, but same same number of vertical pixels as Atari low, 
 	// so the pixels in medium become more like vertical rectangles.
 	if (user_resolution.slug == 'atari_st_medium') {
-		root.style.setProperty(`--horizontal-scale`, 2);
-		root.style.setProperty(`--vertical-scale`, 4);
+		scale_horiz = 2;
+		scale_vert = 4;
+		root.style.setProperty(`--horizontal-scale`, scale_horiz);
+		root.style.setProperty(`--vertical-scale`, scale_vert);
 	}
+
+
+	// Calculate display width/height
+	display_width = screen_width * scale_horiz;
+	display_height = screen_height * scale_vert;
+
+	// Calculate buffer around the display
+	buffer_horiz = buffer_size * scale_horiz;
+	buffer_vert = buffer_size * scale_vert;
 
 	// Set a pointer to the chosen color palette
 	current_palette = user_resolution.palettes[pal_id].colors;
@@ -253,8 +297,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			}
 		});
 	}
-
-
 
 	// Click handlers for color palette buttons
 	document.querySelectorAll('.widget-colors .palette-button').forEach((elem)=> {
@@ -375,36 +417,34 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}
 
 
-
-
 	let canvas_bg_rgb = atari_to_rgb(current_palette[0]);
 
 	// Set up the painting canvas
-	canvas.width = user_resolution.width;
-	canvas.height = user_resolution.height;
+	canvas.width = screen_width;
+	canvas.height = screen_height;
 	disableSmoothing(context);
 	clearCanvas(context, canvas, `rgb(${canvas_bg_rgb[0]}, ${canvas_bg_rgb[1]}, ${canvas_bg_rgb[2]})`);
 
 	// Set up the live drawing canvas (showing in-progress lines as cursor moves)
-	liveCanvas.width = user_resolution.width;
-	liveCanvas.height = user_resolution.height;
+	liveCanvas.width = screen_width;
+	liveCanvas.height = screen_height;
 	disableSmoothing(liveContext);
 	clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
 
-	// Set up the cursor overlay
-	cursorCanvas.width = user_resolution.width;
-	cursorCanvas.height = user_resolution.height;
-	disableSmoothing(cursorContext);
-	clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
-
 	// Set up the pattern canvas
-	patternCanvas.width = user_resolution.width;
-	patternCanvas.height = user_resolution.height;
+	patternCanvas.width = screen_width;
+	patternCanvas.height = screen_height;
 	disableSmoothing(patternContext);
 	clearCanvas(patternContext, patternCanvas, 'rgba(0,0,0,0)');
 
+	// Set up the cursor overlay -- Its dimensions are larger to align with buffer
+	cursorCanvas.width = screen_width + (buffer_size*2);
+	cursorCanvas.height = screen_height + (buffer_size*2);
+	disableSmoothing(cursorContext);
+	clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
 
-	// Set up the loupe
+
+	// Set up the loupe canvas
 	loupeCanvas.width = loupe_size;
 	loupeCanvas.height = loupe_size;
 	disableSmoothing(loupeContext);
@@ -416,64 +456,68 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
-	if (!canvasContainer.hasAttribute('hasClickHandler')) {
+	if (!display.hasAttribute('hasClickHandler')) {
 		// CANVAS CLICK HANDLER
-		canvasContainer.addEventListener('click', function(event) {
+		display.addEventListener('click', function(event) {
 			event.stopPropagation();
 			event.preventDefault();
-			if (current_tool !== null && current_tool.name !== 'Pencil') {
+			// Avoid extra click after a drag event
+			if (mouse_is_down == true) {
+				mouse_is_down = false;
+				return false;
+			}
+			// Otherwise check if this is a valid click.
+			if (current_tool !== null && current_tool.name !== 'draw_point') {
 				debug(`Event Listener: Click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 				tool_functions[current_tool].onclick(event);
 			}
 			return false;
 		}, false);
-		canvasContainer.setAttribute('hasClickHandler', 'true');
+		display.setAttribute('hasClickHandler', 'true');
 	}
 
 
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
-	if (!canvasContainer.hasAttribute('hasDragHandler')) {
+	if (!display.hasAttribute('hasDragHandler')) {
 		// CANVAS MOUSEDOWN/MOUSEUP HANDLER - SPECIFICALLY FOR PENCIL
 		// Basically we have to watch for mousedown. If mousemove comes next, it's a drag.
 		// If not, and we record a mouseup, then treat it like a single click.
-		canvasContainer.addEventListener('mousedown', function(event) {
+		display.addEventListener('mousedown', function(event) {
 			if (current_tool !== null && current_tool == 'draw_point') {
 				event.stopPropagation();
 				event.preventDefault();
 				mouse_is_down = true;
-				debug(`Event Listener: Mousedown\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 			}
 			return false;
 		}, false);
-		canvasContainer.addEventListener('mouseup', function(event) {
+		display.addEventListener('mouseup', function(event) {
 			if (current_tool !== null && current_tool == 'draw_point') {
+				debug(`Event Listener: Mouseup\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 				event.stopPropagation();
 				event.preventDefault();
-				if (mouse_is_dragging == false) {
-					tool_functions[current_tool].onclick(event);
-					debug(`Event Listener: Mouseup\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-				}
 				if (mouse_is_dragging == true) {
 					tool_functions[current_tool].ondragend(event);
 				}
-
+				else if (mouse_is_dragging == false) {
+					tool_functions[current_tool].onclick(event);
+				}
 			}
-			mouse_is_down = false;
+			// mouse_is_down = false;
 			mouse_is_dragging = false;
 			return false;
 		}, false);
 
-		canvasContainer.setAttribute('hasDragHandler', 'true');
+		display.setAttribute('hasDragHandler', 'true');
 	}
 
 
 
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
-	if (!canvasContainer.hasAttribute('hasRightClickHandler')) {
+	if (!display.hasAttribute('hasRightClickHandler')) {
 		// CANVAS RIGHT-CLICK HANDLER
-		canvasContainer.addEventListener('contextmenu', function(event) {
+		display.addEventListener('contextmenu', function(event) {
 			event.stopPropagation();
 			event.preventDefault();
 			if (current_tool !== null) {
@@ -482,22 +526,18 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			}
 			return false;
 		}, false);
-		canvasContainer.setAttribute('hasRightClickHandler', 'true');
+		display.setAttribute('hasRightClickHandler', 'true');
 	}
 
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
-	if (!canvasContainer.hasAttribute('hasMouseMoveHandler')) {
+	if (!display.hasAttribute('hasMouseMoveHandler')) {
 		// CANVAS MOUSEMOVE HANDLER
-		// NEED TO REFACTOR ALL THIS TO CONVERT ACTUAL SCREEN COORDS TO CANVAS COORDINATES
-		// (rather than use CSS to scale up, which makes mouse transitions from
-		// the canvas back to the rest of the UI become weird)
-		canvasContainer.addEventListener('mousemove', function(event) {
+		display.addEventListener('mousemove', function(event) {
 			if (current_tool !== 'rendering') {
-				const px = event.layerX;
-				const py = event.layerY;
+				const [px, py] = translate_to_screen(event.layerX, event.layerY);
 
-				if (px <= canvas_width && py <= canvas_height) {
+				if (px <= screen_width && py <= screen_height) {
 					if (current_tool !== null) {
 						debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 						tool_functions[current_tool].mousemove(event);
@@ -515,18 +555,18 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			}
 			return false;
 		}, false);
-		canvasContainer.setAttribute('hasMouseMoveHandler', 'true');
+		display.setAttribute('hasMouseMoveHandler', 'true');
 	}
 
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
-	if (!canvasContainer.hasAttribute('hasMouseOutHandler')) {
+	if (!display.hasAttribute('hasMouseOutHandler')) {
 		// CANVAS MOUSEOUT HANDLER
-		canvasContainer.addEventListener('mouseout', function(event) {
+		display.addEventListener('mouseout', function(event) {
 			update_status(null,null);
 			return false;
 		}, false);
-		canvasContainer.setAttribute('hasMouseOutHandler', 'true');
+		display.setAttribute('hasMouseOutHandler', 'true');
 	}
 
 
@@ -546,7 +586,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		history.export('illustration.ig');
 		return false;
 	}, false);
-
 
 
 	// Set a pointer to the chosen color pattern
@@ -604,9 +643,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 					}
 				});
 			}
-
-			// debug(`Event Listener: patterns change  |  pattern: ${current_pattern.name}`);
-
 		});
 		pattern_select.setAttribute('hasChangeHandler', 'true');
 	}
@@ -639,9 +675,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 					}
 				});
 			}
-
-			// debug(`Event Listener: border_flag change  |  flag: ${border_flag}`);
-
 		});
 		border_flag_input.setAttribute('hasChangeHandler', 'true');
 	}
@@ -665,9 +698,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 					}
 				});
 			}
-
-			// debug(`Event Listener: drawing mode change  |  mode: ${current_drawing_mode}`);
-
 		});
 		drawing_mode_select.setAttribute('hasChangeHandler', 'true');
 	}
@@ -701,6 +731,10 @@ window.addEventListener('keydown', function(event) {
 	else if ((event.key === 'Z' || event.key === 'z') && (event.ctrlKey || event.metaKey)) {
 		history.undo();
 		renderer.render();
+	}
+	// RELOAD (since we're intercepting all keydowns)
+	else if ((event.key === 'R' || event.key === 'r') && (event.ctrlKey || event.metaKey)) {
+		window.location.reload();
 	}
 });
 
@@ -750,6 +784,8 @@ function clearCanvas(ctx, cvs, fill) {
 	ctx.fillRect(0, 0, cvs.width, cvs.height);
 }
 
+
+// The cursor canvas is now larger, and offset, to align with the buffer around the display
 function draw_cursor(sprite_num, px, py) {
 	const sprite_w = 16;
 	const sprite_h = 16;
@@ -763,11 +799,11 @@ function draw_cursor(sprite_num, px, py) {
 	const sprite_x = sprite_w * sprite_num;
 	const sprite_y = sprite_w * sprite_num;
 
-	const dx = px - icon_offset_x;
-	const dy = py - icon_offset_y;
+	const dx = px - icon_offset_x + buffer_size;
+	const dy = py - icon_offset_y + buffer_size;
 
 	cursorContext.drawImage(icon_sprites, sprite_x, sprite_y, sprite_w, sprite_h, dx, dy, sprite_w, sprite_h);
-	// cursorContext.drawImage(icon_sprites,px,py);
+	// cursorContext.drawImage(icon_sprites, px, py);
 
 }
 
@@ -775,7 +811,7 @@ function draw_cursor(sprite_num, px, py) {
 function update_status(px, py) {
 	let dx = '';
 	let dy = '';
-	if (px && py) {
+	if (px !== null && py !== null && px > -1 && py > -1) {
 		dx = px.toString();
 		dy = py.toString();
 	}
@@ -815,8 +851,9 @@ function update_loupe(px, py) {
 		loupe_size, // destination width
 		loupe_size // destination height
 	);
-
 }
+
+
 
 function checkBounds(ctx, px, py) {
 	if (px < 0) { px = 0; }
@@ -1021,6 +1058,7 @@ const renderer = {
 		}
 		// End with current command
 		renderer[history.present.action](history.present.params);
+
 		// Reset state
 		current_state = 'start';
 		debug('!!! RENDER() END');
@@ -1150,7 +1188,10 @@ const tool_functions = {
 		onclick: function(event) {
 			debug(`draw_point click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
 			// Add this action to our history stack.
 			history.add({
@@ -1184,8 +1225,10 @@ const tool_functions = {
 		mousemove: function(event) {
 			debug(`draw_point mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			let px = event.layerX;
-			let py = event.layerY;
+			let sx = event.layerX;
+			let sy = event.layerY;
+
+			let [px, py] = translate_to_screen(sx, sy);
 
 			// Clear live-drawing and cursor canvases
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -1200,7 +1243,10 @@ const tool_functions = {
 				current_state = 'drawing';
 			}
 
-			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
 			let new_pixels = [[px, py]];
 			if (tool_functions.draw_point.points.length > 0) {
@@ -1228,9 +1274,13 @@ const tool_functions = {
 
 		},
 		ondragend: function(event) {
-			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+			debug(`draw_point dragend\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
-			tool_functions.draw_point.points.push([px,py]);
+			tool_functions.draw_point.points.push([px, py]);
 
 			// Remove duplicate points from the array
 			tool_functions.draw_point.points = Array.from(new Set(tool_functions.draw_point.points.map(JSON.stringify)), JSON.parse);
@@ -1261,7 +1311,10 @@ const tool_functions = {
 		onclick: function(event) {
 			debug(`draw_line click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
 			// Start state means first click
 			if (current_state == 'start') {
@@ -1316,8 +1369,9 @@ const tool_functions = {
 		mousemove: function(event) {
 			debug(`draw_line mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			let px = event.layerX;
-			let py = event.layerY;
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
 
 			// Clear live-drawing and cursor canvases
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -1338,7 +1392,7 @@ const tool_functions = {
 
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
-			update_status(px,py);
+			update_status(px, py);
 		}
 	},
 	draw_polyline: {
@@ -1346,7 +1400,10 @@ const tool_functions = {
 		onclick: function(event) {
 			debug(`draw_polyline click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
 			// Start state means first click
 			if (current_state == 'start') {
@@ -1368,7 +1425,7 @@ const tool_functions = {
 				origin_y = py;
 				current_state = 'drawing';
 			}
-			tool_functions.draw_polyline.points.push([px,py]);
+			tool_functions.draw_polyline.points.push([px, py]);
 		},
 		// ondblclick: function(event) {
 		// }, 
@@ -1405,8 +1462,9 @@ const tool_functions = {
 		mousemove: function(event) {
 			debug(`draw_polyline mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			let px = event.layerX;
-			let py = event.layerY;
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
 
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
@@ -1430,7 +1488,7 @@ const tool_functions = {
 
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
-			update_status(px,py);
+			update_status(px, py);
 		}
 	},
 	draw_rect: {
@@ -1438,7 +1496,10 @@ const tool_functions = {
 		onclick: function(event) {
 			debug(`draw_rect click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			const [px, py] = checkBounds(context, event.layerX, event.layerY);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
 			// Start state means first click
 			if (current_state == 'start') {
@@ -1448,13 +1509,13 @@ const tool_functions = {
 				origin_y = py;
 
 				// We're not going to add all four points, but just the origin and the extent.
-				tool_functions.draw_rect.points.push([px,py]);
+				tool_functions.draw_rect.points.push([px, py]);
 			}
 
 			// Drawing state means second click. Time to draw the rect.
 			else if (current_state == 'drawing') {
 				// We're not going to add all four points, but just the origin and the extent.
-				tool_functions.draw_rect.points.push([px,py]);
+				tool_functions.draw_rect.points.push([px, py]);
 
 				// Reset the cursor layer to get rid of the guide line
 				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -1486,7 +1547,10 @@ const tool_functions = {
 		onrightclick: function(event) {
 			debug(`draw_rect right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			const [px, py] = checkBounds(context, event.layerX, event.layerY);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
 			// Reset the cursor layer to get rid of the guide line
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -1505,8 +1569,9 @@ const tool_functions = {
 		mousemove: function(event) {
 			debug(`draw_rect mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			const px = event.layerX;
-			const py = event.layerY;
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
 
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
@@ -1522,7 +1587,7 @@ const tool_functions = {
 			}
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
-			update_status(px,py);
+			update_status(px, py);
 		}
 	},
 
@@ -1531,7 +1596,10 @@ const tool_functions = {
 		onclick: function(event) {
 			debug(`draw_polygon click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			let [px, py] = checkBounds(context, event.layerX, event.layerY);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
 			// Start state means first click
 			if (current_state == 'start') {
@@ -1558,7 +1626,7 @@ const tool_functions = {
 				current_state = 'drawing';
 			}
 
-			tool_functions.draw_polygon.points.push([px,py]);
+			tool_functions.draw_polygon.points.push([px, py]);
 		},
 		// ondblclick: function(event) {
 		// }, 
@@ -1566,7 +1634,10 @@ const tool_functions = {
 		onrightclick: function(event) {
 			debug(`draw_polygon right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			const [px, py] = checkBounds(context, event.layerX, event.layerY);
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
 
 			// Reset the cursor layer to get rid of the guide line
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -1603,8 +1674,9 @@ const tool_functions = {
 		mousemove: function(event) {
 			debug(`draw_polygon mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
-			let px = event.layerX;
-			let py = event.layerY;
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
 
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
@@ -1628,7 +1700,7 @@ const tool_functions = {
 
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
-			update_status(px,py);
+			update_status(px, py);
 		}
 	}
 }
