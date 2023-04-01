@@ -175,6 +175,7 @@ a {
 	display: block;
 	width: calc(var(--display-width) + var(--horiz-buffer) + var(--horiz-buffer));
 	height: calc(var(--display-height) + var(--vert-buffer) + var(--vert-buffer));
+	cursor: none;
 }
 
 
