@@ -1171,7 +1171,7 @@ const renderer = {
 		this.update_tool('draw_polygon');
 
 		// Fill the polygon
-		fill_poly(context, params.points);
+		fill_poly_vdi(context, params.points);
 
 		// Draw the edges of the polygon, if border_flag is true
 		if (border_flag) {
@@ -2101,7 +2101,6 @@ function check_intersect(a, b) {
 }
 
 
-
 function fill_rect(ctx, corners) {
 	const x0 = Math.min(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
 	const x1 = Math.max(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
@@ -2117,144 +2116,147 @@ function fill_rect(ctx, corners) {
 }
 
 
-function fill_poly(ctx, vertices) {
-	// console.log(`points: ${points}`);
+// This function generates a filled polygon identical to VDI's `v_fillarea`.
+// My code is based on the `clc_flit()` function in EmuTOS:
+// https://github.com/emutos/emutos/blob/43d5f408babf826244b5c0d693271bc5cfcf0683/vdi/vdi_fill.c#L435
 
-	let bresenham_line_pixels = [];
-	if (vertices.length > 1) {
-		for (let i=0; i<vertices.length; i++) {
-			let j=i+1;
-			if (i == vertices.length-1) { j=0; }
-			bresenham_line_pixels.push(
-				getBresenhamLinePixels(
-					context,
-					vertices[i][0],
-					vertices[i][1],
-					vertices[j][0],
-					vertices[j][1]
-				)
-			);
-		}
-	}
+function fill_poly_vdi(ctx, points) {
+	const MAX_VERTICES = 512;
 
-	const num_lines = bresenham_line_pixels.length;
+	const y_coords = points.map(function(p) {return p[1]});
 
-	const canvas_top = 0;
-	const canvas_left = 0;
-	const canvas_bottom = ctx.canvas.height;
-	const canvas_right = ctx.canvas.width;
+	const y_max = Math.max(...y_coords); // start row (bottom)
+	const y_min = Math.min(...y_coords); // end row (top)
 
-	// Holder for all pixels we determine we need to fill
-	let pixels_to_fill = [];
+	// VDI apparently loops over the scan lines from bottom to top
+	for (let y = y_max; y > y_min; y--) {
 
-	//  Loop through the rows of the image.
-	for (let scan_line=canvas_top; scan_line<canvas_bottom; scan_line++) {
+		// Set up counter for vector intersections
+		let intersections = 0;
 
-		// Find all the places where the bresenham lines intersect with this row/scanline
-		let scan_intersections = bresenham_line_pixels.map(line => line.filter(pixel => pixel[1] == scan_line ).sort((a,b) => a[0] - b[0]));
+		// Set up a buffer for storing polygon edges that intersect the scan line
+		let edge_buffer = [];
 
-		// Remove empty line arrays
-		scan_intersections = scan_intersections.filter(line => line.length > 0);
-
-		// Sort the intersections by X-coordinate, so they are arranged left to right
-		scan_intersections = scan_intersections.sort(function(a,b) {
-			if (a.length == 0) { return -1 }
-			if (b.length == 0) { return -1 }
-			return a[0][0] - b[0][0];
-		});
-
-		if (scan_intersections.length > 0) {
-			debug(`scan_line: ${scan_line}`);
-			debug(`    - intersections: ${scan_intersections}`);
-			debug(`    - intersections[0]: ${scan_intersections[0]}`);
-			debug(`    - intersections[1]: ${scan_intersections[1]}`);
-			debug(scan_intersections);
-		}
-
-		// If there are an odd number of intersections, we need to intervene and coalesce either the first or last pair.
-		if (scan_intersections.length > 1 && scan_intersections.length % 2) {
-			debug('    - RESHAPING NEEDED');
-			debug(check_intersect(scan_intersections[0], scan_intersections[1]));
-			debug(check_intersect(scan_intersections[scan_intersections.length-2], scan_intersections[scan_intersections.length-1]));
-
-			// Coalesce *opening* lines if they form a vertex/corner of the polygon
-			if (check_intersect(scan_intersections[0], scan_intersections[1]) == true) {
-				debug('    - COALESCING FIRST INTERSECTIONS');
-				// Remove first line from the intersections
-				const line1 = scan_intersections.shift();
-				// Merge with new first line
-				scan_intersections[0] = line1.concat(scan_intersections[0]);
-				debug(scan_intersections);
+		// Loop over all vertices/points and find the intersections
+		for (let i = 0; i < points.length; i++) {
+			// Account for fact that final point connects to the first point
+			let next_point = i+1;
+			if (next_point == points.length) {
+				next_point = 0;
 			}
 
-			// Coalesce *ending* lines if they form a vertex/corner of the polygon
-			else if (check_intersect(scan_intersections[scan_intersections.length-2], scan_intersections[scan_intersections.length-1]) == true) {
-				debug('    - COALESCING FINAL INTERSECTIONS');
-				// Remove first line from the intersections
-				const line1 = scan_intersections.pop();
-				// Merge with new first line
-				scan_intersections[scan_intersections.length-1] = scan_intersections[scan_intersections.length-1].concat(line1);
-				debug(scan_intersections);
-			}
+			// Convenience variables for endpoints
+			const p1 = points[i];
+			const p2 = points[next_point];
 
-			else {
-				debug('    - FAILED BOTH TESTS');
-				debug('    - SEARCHING FOR AN INTERSECTION TO COALESCE');
-				let new_scan_intersections = [scan_intersections[0]];
-				for (let i=1; i<scan_intersections.length; i++) {
-					if (check_intersect(scan_intersections[i-1], scan_intersections[i]) != true) {
-						new_scan_intersections.push(scan_intersections[i]);
+			const y1 = p1[1]; // Get Y-coord of 1st endpoint.
+			const y2 = p2[1]; // Get Y-coord of 2nd endpoint.
+
+			// Get Y delta of current vector/segment/edge
+			const dy = y2 - y1;
+
+			// If the current vector is horizontal (0), ignore it.
+			if (dy) {
+
+				// Calculate deltas of each endpoint with current scan line.
+				const dy1 = y - y1;
+				const dy2 = y - y2;
+
+				// Determine whether the current vector intersects with
+				// the scan line by comparing the Y-deltas we calculated
+				// of the two endpoints from the scan line.
+				//
+				// If both deltas have the same sign, then the line does
+				// not intersect and can be ignored.  The origin for this
+				// test is found in Newman and Sproull.
+				if ((dy1^dy2) < 0) {
+
+					const x1 = p1[0]; // Get X-coord of 1st endpoint.
+					const x2 = p2[0]; // Get X-coord of 2nd endpoint.
+
+					// Calculate X delta of current vector
+					const dx = (x2 - x1) << 1;  // Left shift so we can round by adding 1 below
+
+					// Stop if we have reached the max number of verticies allowed (512)
+					if (intersections >= MAX_VERTICES) {
+						break;
+					}
+
+					intersections++;
+
+					// Add X value for this vector to edge buffer
+					if (dx < 0) {
+						edge_buffer.push(((dy2 * dx / dy + 1) >> 1) + x2);
+					}
+					else {
+						edge_buffer.push(((dy1 * dx / dy + 1) >> 1) + x1);
 					}
 				}
-				scan_intersections = new_scan_intersections;
-				debug(new_scan_intersections);
 			}
 		}
 
 
+		// All of the points of intersection have now been found.  If there
+		// were none (or one, which I think is impossible), then there is
+		// nothing more to do.  Otherwise, sort the list of points of
+		// intersection in ascending order.
+		// (The list contains only the x-coordinates of the points.)
+
+		if (intersections < 2) {
+			continue;
+		}
 
 
+		// Sort the X-coordinates, so they are arranged left to right.
+		// There are almost always exactly 2, except for weird shapes.
+		edge_buffer = edge_buffer.sort((a,b) => a-b);
 
-		// Fill all the line pixels, and the pixels between the line pixels
-		for (i=0; i<scan_intersections.length; i+=2) {
-			// Add the pixels from the first intersection
-			for (p of scan_intersections[i]) {
-				pixels_to_fill.push(p);
+		// EmuTOS testers found that in Atari TOS the fill area always *includes*
+		// the left and right perimeter (for those functions that allow the
+		// perimeter to be drawn separately, it is drawn on top of the edge
+		// pixels).  The routine below conforms to Atari TOS.
+
+		// Loop through all edges in pairs, filling the pixels in between.
+		let i = intersections / 2;
+		let j = 0;
+		while(i--) {
+			/* grab a pair of endpoints */
+			x1 = edge_buffer[j];
+			x2 = edge_buffer[j+1];
+
+			j = j + 2
+
+			// ===============================================
+			// As far as I can tell, I don't need any of this
+			// clipping code.
+			// ===============================================
+
+			// // Handle clipping
+			// if (attr->clip) {
+			// 	if (x1 < clipper->xmn_clip) {
+			// 		if (x2 < clipper->xmn_clip)
+			// 			continue;           /* entire segment clipped left */
+			// 		x1 = clipper->xmn_clip; /* clip left end of line */
+			// 	}
+			//
+			// 	if (x2 > clipper->xmx_clip) {
+			// 		if (x1 > clipper->xmx_clip)
+			// 			continue;           /* entire segment clipped right */
+			// 		x2 = clipper->xmx_clip; /* clip right end of line */
+			// 	}
+			// }
+			// rect.x1 = x1;
+			// rect.y1 = y;
+			// rect.x2 = x2;
+			// rect.y2 = y;
+			//
+			// // Rectangle fill routine draws horizontal line
+			// draw_rect_common(attr, &rect);
+
+			// Fill in all pixels horizontally from (x1, y) to (x2, y)
+			for (k=x1; k<=x2; k++) {
+				fill_pixel(ctx, k, y);
 			}
-			// If this is final rightmost intersection, then there's nothing else to do.
-			if (i == scan_intersections.length-1) {
-				continue;
-			}
-
-			const int_0 = scan_intersections[i];
-			const int_1 = scan_intersections[i+1];
-
-			// Determine if we need to fill pixels between this intersection and the next.
-			// We don't need to if these intersections already overlap.
-			if (int_0[int_0.length-1] != int_1[0]) {
-				const left_x = int_0[int_0.length-1][0];
-				const right_x = int_1[0][0];
-				for (x=left_x+1; x<right_x; x++) {
-					pixels_to_fill.push([x,scan_line]);
-				}
-			}
-			// Add the pixels from the second intersection
-			for (p of scan_intersections[i+1]) {
-				pixels_to_fill.push(p);
-			}
-
 		}
 	}
-
-	debug(pixels_to_fill);
-
-	// alternate for correcting missing col: (scan_col=x_nodes[i]; scan_col<=x_nodes[i+1]; scan_col++)
-	for (p of pixels_to_fill) { 
-		fill_pixel(ctx, p[0], p[1]);
-	}
-
-
 }
-
-
-
