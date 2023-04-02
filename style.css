@@ -31,20 +31,27 @@
 
 	--layer-opacity: 1;
 
-	--canvas-width: 320;
-	--canvas-height: 200;
-	--canvas-aspect: 1;
+	/* Screen resolution, using low as default */
+	--screen-width: 320;
+	--screen-height: 200;
+
+	/* Pixels are roughly square in low rez */
 	--vertical-scale: 3;
 	--horizontal-scale: 3;
 
-	--loupe-size: 21;
+	/* The display will be scaled up from the screen size by the factors we just set */
+	--display-width: calc(var(--screen-width) * var(--horizontal-scale) * 1px);
+	--display-height: calc(var(--screen-height) * var(--vertical-scale) * 1px);
 
+
+	/* Right now I'm using a loupe grid of 21 x 21, which seems too large. */
+	--loupe-size: 21;
 	--loupe-width: calc((var(--loupe-size) * var(--horizontal-scale) * 4 * 1px) + 1px);
 
-	--scaled-canvas-width: calc(var(--canvas-width) * var(--horizontal-scale) * 1px);
-	--scaled-canvas-height: calc(var(--canvas-height) * var(--vertical-scale) * 1px);
-
-
+	/* 6px-buffer around the canvas to make it easier to work on edges and corners */
+	--buffer-size: 6;
+	--horiz-buffer: calc(var(--horizontal-scale) * var(--buffer-size) * 1px);
+	--vert-buffer: calc(var(--vertical-scale) * var(--buffer-size) * 1px);
 }
 
 html {
@@ -131,7 +138,7 @@ a {
 
 
 .pane-main {
-	width:  var(--scaled-canvas-width);
+	width:  var(--display-width);
 	text-align: center;
 }
 
@@ -151,18 +158,46 @@ a {
 	pointer-events: none;
 }
 
-
-.canvas-container {
+.display-container {
 	margin: 2rem auto 0.5rem auto;
 	position: relative;
-	width: var(--scaled-canvas-width);
-	height: var(--scaled-canvas-height);
+	display: block;
+	width: calc(var(--display-width) + var(--horiz-buffer) + var(--horiz-buffer));
+	height: calc(var(--display-height) + var(--vert-buffer) + var(--vert-buffer));
+	padding: var(--vert-buffer) var(--horiz-buffer);
 }
 
-.canvas-subcontainer {
-	display: none;
+.mouse-target {
+	z-index: 5;
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	display: block;
+	width: calc(var(--display-width) + var(--horiz-buffer) + var(--horiz-buffer));
+	height: calc(var(--display-height) + var(--vert-buffer) + var(--vert-buffer));
 	cursor: none;
 }
+
+
+.buffer-background {
+	z-index: -100;
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	display: block;
+	width: calc(var(--display-width) + var(--horiz-buffer) + var(--horiz-buffer));
+	height: calc(var(--display-height) + var(--vert-buffer) + var(--vert-buffer));
+	background: #333;
+}
+
+
+.display-subcontainer {
+	position: relative;
+	display: block;
+	width: var(--display-width);
+	height: var(--display-height);
+}
+
 
 
 select,
@@ -272,7 +307,7 @@ button.color-choose {
 
 
 
-.canvas-container canvas, 
+.display-container canvas, 
 #canvas-overlay,
 #x-axis,
 #y-axis {
@@ -297,21 +332,26 @@ button.color-choose {
 
 }
 
-
-.canvas-container canvas,
+.display-container canvas,
 .loupe-container canvas {
 	z-index: -1;
 	top: 0;
 	left: 0;
-	/* For nearest-neighbor resampling */
 	image-rendering: pixelated;
 	width: 100%;
 	height: 100%;
 }
 
+
 #cursor-overlay {
+	position:  absolute;
 	z-index: 2;
+	top: calc(var(--horiz-buffer) * -1);
+	left: calc(var(--vert-buffer) * -1);
+	width: calc(var(--display-width) + var(--horiz-buffer) + var(--horiz-buffer));
+	height: calc(var(--display-height) + var(--vert-buffer) + var(--vert-buffer));
 }
+
 #live-canvas {
 	z-index: 0;
 	filter: contrast(.75);

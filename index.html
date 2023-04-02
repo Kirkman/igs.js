@@ -84,14 +84,16 @@
 				<p>Experimental vector paint program which exports art in the IGS format for Atari ST BBSes.
 				<br/>Use right-click to finish a polyline or close a polygon.</p>
 
-				<div class="canvas-container">
-					<div class="canvas-subcontainer">
+				<div class="display-container">
+					<div class="mouse-target"></div>
+					<div class="display-subcontainer">
 						<canvas id="cursor-overlay" class="canvas"></canvas>
 						<div id="canvas-overlay" class="hidden"></div>
 						<canvas id="live-canvas" class="canvas"></canvas>
 						<canvas id="paint-canvas" class="canvas"></canvas>
 						<canvas id="pattern-canvas" class="canvas"></canvas>
 					</div>
+					<div class="buffer-background"></div>
 				</div>
 
 				<div class="status-container">
