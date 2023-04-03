@@ -592,10 +592,18 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}, false);
 
 	// Click handler for IG export button
-	const export_button = document.querySelector('.files-export-ig');
-	export_button.addEventListener('click', function(event) {
+	const export_ig_button = document.querySelector('.files-export-ig');
+	export_ig_button.addEventListener('click', function(event) {
 		event.preventDefault();
-		history.export('illustration.ig');
+		history.export_ig('illustration.ig');
+		return false;
+	}, false);
+
+	// Click handler for PNG export button
+	const export_png_button = document.querySelector('.files-export-png');
+	export_png_button.addEventListener('click', function(event) {
+		event.preventDefault();
+		history.export_png('illustration.png');
 		return false;
 	}, false);
 
@@ -940,8 +948,27 @@ const history = {
 		a.download = filename;
 		a.click();
 	},
+	// Export in PNG format
+	export_png: function(filename) {
+		// Create a temporary canvas so we can scale the image up from 320x200 to 1,280x800
+		const tempCanvas = document.createElement('canvas');
+		const tempContext = tempCanvas.getContext('2d');
+		tempCanvas.width = canvas.width * 4;
+		tempCanvas.height = canvas.height * 4;
+
+		disableSmoothing(tempContext);
+
+		tempContext.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, tempCanvas.width, tempCanvas.height);
+
+		tempCanvas.toBlob(function(blob) {
+			const a = document.createElement('a');
+			a.href = URL.createObjectURL(blob);
+			a.download = filename;
+			a.click();
+		});
+	},
 	// Export in IG format
-	export: function(filename) {
+	export_ig: function(filename) {
 		// Combine the past and present to generate a full history object.
 		const full_history = this.past.concat([this.present]);
 
