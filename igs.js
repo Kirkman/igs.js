@@ -583,29 +583,42 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 
 
-	// Click handler for save button
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
 	const save_button = document.querySelector('.files-save-json');
-	save_button.addEventListener('click', function(event) {
-		event.preventDefault();
-		history.save('illustration.json');
-		return false;
-	}, false);
+	if (!save_button.hasAttribute('hasClickHandler')) {
+		// Click handler for save button
+		save_button.addEventListener('click', function(event) {
+			event.preventDefault();
+			history.save('illustration.json');
+			return false;
+		}, false);
+		save_button.setAttribute('hasClickHandler', 'true');
+	}
 
-	// Click handler for IG export button
+
+
 	const export_ig_button = document.querySelector('.files-export-ig');
-	export_ig_button.addEventListener('click', function(event) {
-		event.preventDefault();
-		history.export_ig('illustration.ig');
-		return false;
-	}, false);
+	if (!export_ig_button.hasAttribute('hasClickHandler')) {
+		// Click handler for IG export button
+		export_ig_button.addEventListener('click', function(event) {
+			event.preventDefault();
+			history.export_ig('illustration.ig');
+			return false;
+		}, false);
+		export_ig_button.setAttribute('hasClickHandler', 'true');
+	}
 
-	// Click handler for PNG export button
 	const export_png_button = document.querySelector('.files-export-png');
-	export_png_button.addEventListener('click', function(event) {
-		event.preventDefault();
-		history.export_png('illustration.png');
-		return false;
-	}, false);
+	if (!export_png_button.hasAttribute('hasClickHandler')) {
+		// Click handler for PNG export button
+		export_png_button.addEventListener('click', function(event) {
+			event.preventDefault();
+			history.export_png('illustration.png');
+			return false;
+		}, false);
+		export_png_button.setAttribute('hasClickHandler', 'true');
+	}
 
 
 	// Set a pointer to the chosen color pattern
@@ -1930,7 +1943,7 @@ function pixel_color_to_word32(ctx, x, y) {
 // This is a wrapper for set_pixel that checks against the pattern 
 // to see if this specific pixel should be drawn or left hollow.
 // Also checks drawing mode to check if "empty" pattern pixels 
-// will render as color 0, or as transparent/
+// will render as color 0, or as transparent.
 function fill_pixel(ctx, x, y) {
 	// debug(`------------------------------`);
 	// debug(`fill_pixel | x: ${x}, y: ${y}`);
