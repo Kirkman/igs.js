@@ -943,6 +943,8 @@ const history = {
 		}
 	},
 	load: function(actions) {
+		// Remove any objects that don't have actions. This can allow me to include non-action objects in the JSON to use for 'comments'.
+		actions = actions.filter(obj => Object.keys(obj).includes('action'));
 		// Take all actions from the JSON file and load them into the past.
 		this.past = actions;
 		// Set the final action as our "present".
@@ -953,8 +955,9 @@ const history = {
 		// Combine the past and present to generate a full history object.
 		const full_history = this.past.concat([this.present]);
 		const obj = { history: full_history };
-		const obj_str = JSON.stringify(obj);
-
+		// Convert command history into a JSON string. 
+		// Add a line break before each action object to make it easier to edit in text editors.
+		let obj_str = JSON.stringify(obj).replaceAll('{"action"','\n{"action"');
 		const a = document.createElement('a');
 		const type = filename.split('.').pop();
 		a.href = URL.createObjectURL( new Blob([obj_str], { type:`text/${type === 'txt' ? 'plain' : type}` }) );
@@ -1005,14 +1008,25 @@ const history = {
 			cmd_str += 'G#I>0:s>5:k>0:T>1,1,1:\r\n';
 		}
 
+		// Variables to track state of colors, patterns, etc, to avoid duplicating the commands.
+		let exp_marker_color = null;
+		let exp_line_color = null;
+		let exp_fill_color = null;
+		let exp_text_color = null;
+		let exp_pattern = null;
+		let exp_border_flag = null;
+
 		for (cmd of full_history) {
 			switch (cmd.action) {
 				case 'set_resolution':
 					cmd_str += `G#R>${cmd.params.resolution},${cmd.params.sys_palette_flag}:\r\n`;
 					break;
-				// Need to redo the way I'm handling colors. Have to keep track of poly/line/fill/text.
+				// I am now manually setting the colors within the tool commands.
 				case 'set_color':
-					cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
+					// if (exp_fill_color !== cmd.params.color) {
+					// 	cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
+					// 	exp_fill_color = cmd.params.color;
+					// }
 					break;
 				case 'change_color':
 					cmd_str += `G#S>${cmd.params.index},${cmd.params.r},${cmd.params.g},${cmd.params.b}:\r\n`;
@@ -1021,15 +1035,33 @@ const history = {
 					cmd_str += `G#M>${cmd.params.mode}:\r\n`;
 					break;
 				case 'change_pattern':
-					cmd_str += `G#A>${cmd.params.pattern},${cmd.params.border_flag}:\r\n`;
+					if (exp_pattern !== cmd.params.pattern || exp_border_flag !== cmd.params.border_flag) {
+						cmd_str += `G#A>${cmd.params.pattern},${cmd.params.border_flag}:\r\n`;
+						exp_pattern = cmd.params.pattern;
+						exp_border_flag = cmd.params.border_flag;
+					}
 					break;
 				case 'draw_point':
-					cmd_str += `G#P>${cmd.params.points[0][0]},${cmd.params.points[0][1]}:\r\n`;
+					if (exp_marker_color !== cmd.params.color) {
+						cmd_str += `G#C>0,${cmd.params.color}:\r\n`;
+						exp_marker_color = cmd.params.color;
+					}
+					for (point of cmd.params.points) {
+						cmd_str += `G#P>${point[0]},${point[1]}:\r\n`;
+					}
 					break;
 				case 'draw_line':
+					if (exp_line_color !== cmd.params.color) {
+						cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
+						exp_line_color = cmd.params.color;
+					}
 					cmd_str += `G#L>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${cmd.params.points[1][0]},${cmd.params.points[1][1]}:\r\n`;
 					break;
 				case 'draw_polyline':
+					if (exp_line_color !== cmd.params.color) {
+						cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
+						exp_line_color = cmd.params.color;
+					}
 					// THIS CODE IS COMPATIBLE WITH OLD IGS VERSIONS (DRAW LINE + DRAW TOs)
 					// // Draw first segment using DRAW LINE
 					// cmd_str += `G#L>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${cmd.params.points[1][0]},${cmd.params.points[1][1]}:\r\n`;
@@ -1050,12 +1082,18 @@ const history = {
 					}
 					break;
 				case 'draw_rect':
-					// For now I'm manually setting fill color at draw time. This isn't efficient, and I'll need to revisit.
-					cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
+					if (exp_fill_color !== cmd.params.color) {
+						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
+						exp_fill_color = cmd.params.color;
+					}
 					// IGS' BOX command includes 5th parameter for rounded corners. Right now I don't support that.
 					cmd_str += `G#B>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${cmd.params.points[1][0]},${cmd.params.points[1][1]},0:\r\n`;
 					break;
 				case 'draw_polygon':
+					if (exp_fill_color !== cmd.params.color) {
+						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
+						exp_fill_color = cmd.params.color;
+					}
 					// For now I'm manually setting fill color at draw time. This isn't efficient, and I'll need to revisit.
 					cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
 					// First parameter of POLYFILL cmd is the number of points.
