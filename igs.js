@@ -1196,7 +1196,9 @@ const renderer = {
 
 		// Draw the point
 		for (point of params.points) {
-			fill_pixel(context, point[0], point[1]);
+			// Use set_pixel() directly rather than fill_pixel().
+			// Polymarkers don't need to respect fill patterns.
+			set_pixel(context, point[0], point[1]);
 		}
 
 	},
@@ -1355,7 +1357,9 @@ const tool_functions = {
 			// Draw the temporary points
 			set_color(current_color_index, liveContext, 1);
 			for (point of tool_functions.draw_point.points) {
-				fill_pixel(liveContext, point[0], point[1]);
+				// Use set_pixel() directly rather than fill_pixel().
+				// Polymarkers don't need to respect fill patterns.
+				set_pixel(liveContext, point[0], point[1]);
 			}
 
 			draw_cursor(0, px, py);
