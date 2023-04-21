@@ -32,6 +32,9 @@ let border_flag = null;
 let origin_x = null;
 let origin_y = null;
 
+let last_loupe_x = null;
+let last_loupe_y = null;
+
 let polygon_start_x = null;
 let polygon_start_y = null;
 
@@ -852,7 +855,17 @@ function update_status(px, py) {
 	document.querySelector('.status-y .status-value').textContent = dy;
 }
 
-function update_loupe(px, py) {
+function update_loupe(px=null, py=null) {
+	// Keep the loupe updated at the last mouse position when we re-render (e.g. when undoing, etc)
+	if (px === null && py === null && last_loupe_x !== null && last_loupe_y !== null) {
+		px = last_loupe_x;
+		py = last_loupe_y;
+	}
+	else {
+		last_loupe_x = px;
+		last_loupe_y = py;
+	}
+
 	const loupe_offset = (loupe_size - 1) / 2;
 	const loupe_x = px - loupe_offset;
 	const loupe_y = py - loupe_offset;
@@ -1122,7 +1135,6 @@ const history = {
 
 
 
-
 const renderer = {
 	cls: function() {
 		let canvas_bg_rgb = atari_to_rgb(current_palette[0]);
@@ -1148,6 +1160,9 @@ const renderer = {
 		}
 		// End with current command
 		renderer[history.present.action](history.present.params);
+
+		// Make sure loupe is refreshed, so it doesn't go blank after undo/redo, etc.
+		update_loupe();
 
 		// Reset state
 		current_state = 'start';
@@ -1850,8 +1865,8 @@ document.querySelector('#show-overlay').addEventListener('click', function(event
 
 
 function update_canvas_colors(ctx, old_color_rgb, new_color_rgb) {
-	const w = ctx.canvas.height;
-	const h = ctx.canvas.width;
+	const w = ctx.canvas.width;
+	const h = ctx.canvas.height;
 
 	let image_data = context.getImageData(0, 0, w, h);
 
@@ -2023,7 +2038,7 @@ function fill_pixel(ctx, x, y) {
 }
 
 
-var set_pixel = function (ctx, x, y) {
+function set_pixel(ctx, x, y) {
 	ctx.fillRect(x, y, 1, 1);
 }
 
