@@ -38,9 +38,22 @@ let last_loupe_y = null;
 let polygon_start_x = null;
 let polygon_start_y = null;
 
+let virtual_canvas = {
+	data: [],
+	init: function(w, h) {
+		this.data = Array(h).fill().map(() => Array(w).fill(0));
+	},
+	set_pixel: function(x, y, idx) {
+		this.data[y][x] = idx;
+	},
+	get_pixel: function(x, y) {
+		return this.data[y][x];
+	},
+	get_data: function() {
+		return this.data.reduce((xs, ys) => xs.concat(ys));
+	}
 
-
-
+}
 
 const display = document.querySelector('.mouse-target');
 
@@ -251,6 +264,10 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		root.style.setProperty(`--vertical-scale`, scale_vert);
 	}
 
+	// Set up virtual canvas
+	if (virtual_canvas.data.length < 1) {
+		virtual_canvas.init(screen_width,screen_height);
+	}
 
 	// Calculate display width/height
 	display_width = screen_width * scale_horiz;
@@ -1864,38 +1881,39 @@ document.querySelector('#show-overlay').addEventListener('click', function(event
 
 
 
-function update_canvas_colors(ctx, old_color_rgb, new_color_rgb) {
+function update_canvas_colors(ctx) {
 	const w = ctx.canvas.width;
 	const h = ctx.canvas.height;
 
-	let image_data = context.getImageData(0, 0, w, h);
-
-	for (var i=0; i<image_data.data.length; i+=4) {
-		// If pixel has old color, change it to the new color
-		if (
-			image_data.data[i] == old_color_rgb[0] &&
-			image_data.data[i+1] == old_color_rgb[1] &&
-			image_data.data[i+2] == old_color_rgb[2]
-		) {
-			image_data.data[i] = new_color_rgb[0];
-			image_data.data[i+1] = new_color_rgb[1];
-			image_data.data[i+2] = new_color_rgb[2];
-		}
+	// Pre-calculate the RGBs for each palette spot
+	const new_colors = [];
+	for (i=0; i<current_palette.length; i++) {
+		new_colors[i] = atari_to_rgb(current_palette[i]);
 	}
-	// Update the canvas with revised data
-	ctx.putImageData(image_data, 0, 0);
+
+	// Get the arrays ready
+	let virtual_data = virtual_canvas.get_data();
+	let canvas_data = ctx.getImageData(0, 0, w, h);
+
+	// Fetch the color of each pixel on the virtual canvas, then push its R,G,B values into canvas imageData
+	for (let i=0; i<virtual_data.length; i++) {
+		let new_color_rgb = new_colors[virtual_data[i]];
+		canvas_data.data[4*i] = new_color_rgb[0];
+		canvas_data.data[4*i+1] = new_color_rgb[1];
+		canvas_data.data[4*i+2] = new_color_rgb[2];
+	}
+
+	// Update the canvas with revised imageData
+	ctx.putImageData(canvas_data, 0, 0);
 
 }
 
 
 
 function change_palette_color(ctx, current_color_index, new_color_array) {
-	const old_color_array = current_palette[current_color_index];
-	const old_color_rgb = atari_to_rgb(old_color_array);
+	// const old_color_array = current_palette[current_color_index];
+	// const old_color_rgb = atari_to_rgb(old_color_array);
 	const new_color_rgb = atari_to_rgb(new_color_array);
-
-	// Update any pixels on canvas from old color to new color
-	update_canvas_colors(ctx, old_color_rgb, new_color_rgb);
 
 	// Update global palette with new RGB values for this palette position
 	current_palette[current_color_index] = new_color_array;
@@ -1905,7 +1923,11 @@ function change_palette_color(ctx, current_color_index, new_color_array) {
 	// Update color values in CSS variables
 	root.style.setProperty(`--palette-color-${current_color_index}`, new_color_str);
 
+	// Update any pixels on canvas from old color to new color
+	update_canvas_colors(ctx);
+
 	// set_color(current_color_index, ctx);
+	ctx.fillStyle = new_color_str;
 
 }
 
@@ -2026,7 +2048,7 @@ function fill_pixel(ctx, x, y) {
 	else {
 		if (current_drawing_mode == 1) {
 			set_color(0, ctx, 1);
-			set_pixel(ctx, x, y);
+			set_pixel(ctx, x, y, 0);
 			set_color(current_color_index, ctx, 1);
 		}
 		else if (current_drawing_mode == 2) {
@@ -2038,7 +2060,9 @@ function fill_pixel(ctx, x, y) {
 }
 
 
-function set_pixel(ctx, x, y) {
+function set_pixel(ctx, x, y, idx=null) {
+	if (!idx) { idx = current_color_index; }
+	virtual_canvas.set_pixel(x, y, idx);
 	ctx.fillRect(x, y, 1, 1);
 }
 
