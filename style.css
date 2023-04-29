@@ -252,6 +252,27 @@ ul li a:hover {
 }
 
 
+.widget-move-art .input {
+	font-size: 1rem;
+}
+
+.widget-move-art .input-set {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	margin-bottom:  1rem;
+	align-items: center;
+}
+.widget-move-art .input-set label {
+	text-align: left;
+}
+.widget-move-art .input-set label:first-child {
+	font-weight: bold;
+}
+.widget-move-art .input-set label:last-child {
+	font-size: 0.75rem;
+	margin-left:  0.5rem;
+}
+
 
 .widget-color-picker {
 	display: grid;
@@ -306,6 +327,20 @@ button.color-choose {
 	grid-column: 1 / span 2;
 }
 
+
+.widget.cancelable .cancel {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.5rem;
+	background: url('close.svg');
+	width: 2rem;
+	height: 2rem;
+	opacity: 0.5;
+}
+.widget.cancelable .cancel:hover {
+	opacity: 1;
+	cursor: pointer;
+}
 
 
 .display-container canvas, 

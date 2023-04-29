@@ -179,7 +179,7 @@
 		</div>
 
 
-		<div class="widget widget-color-picker modal hidden">
+		<div class="widget widget-color-picker modal hidden cancelable">
 			<h2>Color picker</h2>
 			<div class="input-wrapper">
 				<div class="input-set">
@@ -203,7 +203,29 @@
 			</div>
 			<div class="palette-squares"></div>
 			<button type="button" class="color-choose ui-button">Use this color</button>
+			<div class="cancel"></div>
 		</div>
+
+
+		<div class="widget widget-move-art modal hidden cancelable">
+			<h2>Move art</h2>
+			<p>This function will rewrite your command history to reposition your artwork by adding or subtracting the amounts you choose below. This function is destructive and can NOT be undone.</p>
+			<div class="input-wrapper">
+				<div class="input-set">
+					<label for="picker-x">X (horizontal)</label>
+					<input type="number" id="picker-x" name="picker-x" min="-319" max="319" value="0">
+					<label for="picker-x">-319 to +319</label>
+				</div>
+				<div class="input-set">
+					<label for="picker-y">Y (vertical)</label>
+					<input type="number" id="picker-y" name="picker-y" min="-199" max="199" value="0">
+					<label for="picker-x">-199 to +199</label>
+				</div>
+			</div>
+			<button type="button" class="apply-move ui-button">Move</button>
+			<div class="cancel"></div>
+		</div>
+
 	</section>
 
 

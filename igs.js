@@ -105,6 +105,18 @@ let virtual_canvas = {
 
 		// Update the canvas with revised imageData
 		ctx.putImageData(canvas_data, 0, 0);
+	},
+	translate: function(point, mx, my) {
+		let x = point[0], y = point[1];
+		x = parseInt(x) + parseInt(mx);
+		y = parseInt(y) + parseInt(my);
+		// Kludge to avoid out-of-bounds errors if we do in fact
+		// translate some coordinates out of bounds.
+		if (x < 0) { x = 0; }
+		if (x >= this.width) { x = this.width - 1; }
+		if (y < 0) { y = 0; }
+		if (y >= this.height) { y = this.height - 1; }
+		return [x, y];
 	}
 }
 
@@ -827,23 +839,32 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 // Keydown handler for Cmd/Ctrl-Z (undo) and Shift-Cmd/Ctrl-Z (redo)
 window.addEventListener('keydown', function(event) {
-	event.preventDefault();
-	event.stopImmediatePropagation();
 	// REDO
 	if ((event.key === 'Z' || event.key === 'z') && (event.ctrlKey || event.metaKey) && event.shiftKey) {
+		event.preventDefault();
+		event.stopImmediatePropagation();
 		history.redo();
 		renderer.render();
 	}
 	// UNDO
 	else if ((event.key === 'Z' || event.key === 'z') && (event.ctrlKey || event.metaKey)) {
+		event.preventDefault();
+		event.stopImmediatePropagation();
 		history.undo();
 		renderer.render();
 	}
-	// RELOAD (since we're intercepting all keydowns)
-	else if ((event.key === 'R' || event.key === 'r') && (event.ctrlKey || event.metaKey)) {
-		window.location.reload();
+	// MOVE (since we're intercepting all keydowns)
+	else if ((event.key === 'M' || event.key === 'm') && (event.ctrlKey || event.metaKey) && event.shiftKey) {
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		history.move();
 	}
+	// // RELOAD (since we're intercepting all keydowns)
+	// else if ((event.key === 'R' || event.key === 'r') && (event.ctrlKey || event.metaKey)) {
+	// 	window.location.reload();
+	// }
 });
+
 
 
 
@@ -1024,6 +1045,54 @@ const history = {
 			this.past.push(this.present);
 			// Remove the first item from the future, and use it to replace the present.
 			this.present = this.future.shift();
+		}
+	},
+	move: function() {
+		// Display the modal
+		document.querySelector('.modal-wrapper').classList.remove('hidden');
+		document.querySelector('.widget-move-art').classList.remove('hidden');
+
+		// Click handler for use-this-color button
+		// These outer .hasAttribute() checks ensure we don't re-bind this event
+		// when we render or replay the history (which can cascade).
+		const apply_move_button = document.querySelector('.apply-move');
+		if (!apply_move_button.hasAttribute('hasClickHandler')) {
+			apply_move_button.addEventListener('click', function(event) {
+				const mx = parseInt(document.querySelector('#picker-x').value);
+				const my = parseInt(document.querySelector('#picker-y').value);
+
+				// Close the modal
+				document.querySelector('.modal-wrapper').classList.add('hidden');
+				document.querySelector('.widget-move-art').classList.add('hidden');
+
+				// Iterate over full command history and change coordinates of every point.
+				for (cmd of history.past) {
+					if (cmd.params.hasOwnProperty('points')) {
+						for (i in cmd.params.points) {
+							cmd.params.points[i] = virtual_canvas.translate(cmd.params.points[i], mx, my);
+						}
+					}
+				}
+				if (history.present) {
+					if (history.present.params.hasOwnProperty('points')) {
+						for (i in history.present.params.points) {
+							 history.present.params.points[i] = virtual_canvas.translate(history.present.params.points[i], mx, my);
+						}
+					}
+				}
+				for (cmd of history.future) {
+					if (cmd.params.hasOwnProperty('points')) {
+						for (i in cmd.params.points) {
+							cmd.params.points[i] = virtual_canvas.translate(cmd.params.points[i], mx, my);
+						}
+					}
+				}
+
+				// Re-render with transformation applied
+				renderer.render();
+
+			});
+			apply_move_button.setAttribute('hasClickHandler', 'true');
 		}
 	},
 	load: function(actions) {
