@@ -24,9 +24,7 @@ let mouse_is_down = false;
 
 let current_tool = null;
 let current_state = null;
-let current_palette = null;
 let current_pattern = null;
-let current_color_index = null;
 let current_drawing_mode = null;
 let border_flag = null;
 let origin_x = null;
@@ -39,9 +37,42 @@ let polygon_start_x = null;
 let polygon_start_y = null;
 
 let virtual_canvas = {
+	width: null,
+	height: null,
 	data: [],
-	init: function(w, h) {
-		this.data = Array(h).fill().map(() => Array(w).fill(0));
+	palette: [],
+	color: 0,
+	init_data: function(w, h) {
+		this.width = w;
+		this.height = h;
+		this.reset_data();
+	},
+	reset_data: function() {
+		this.data = Array(this.height).fill().map(() => Array(this.width).fill(0));
+	},
+	set_palette: function(pal) {
+		this.palette = [...pal];
+	},
+	update_palette: function(i, v) {
+		this.palette[i] = v;
+	},
+	get_palette: function() {
+		return this.palette;
+	},
+	get_palette_color: function(i) {
+		return this.palette[i];
+	},
+	get_rgb_palette: function() {
+		return this.palette.map(color => atari_to_rgb(color));
+	},
+	get_rgb_palette_color: function(i) {
+		return this.palette.map(color => atari_to_rgb(color))[i];
+	},
+	set_color: function(c) {
+		this.color = c;
+	},
+	get_color: function() {
+		return this.color;
 	},
 	set_pixel: function(x, y, idx) {
 		this.data[y][x] = idx;
@@ -50,10 +81,35 @@ let virtual_canvas = {
 		return this.data[y][x];
 	},
 	get_data: function() {
-		return this.data.reduce((xs, ys) => xs.concat(ys));
-	}
+		return this.data.flat();
+		// return this.data.reduce((xs, ys) => xs.concat(ys));
+	},
+	draw: function(ctx) {
+		const w = ctx.canvas.width;
+		const h = ctx.canvas.height;
 
+		// Pre-calculate the RGBs for each palette spot
+		const rgb_palette = this.get_rgb_palette();
+
+		// Get the arrays ready
+		let virtual_data = this.get_data();
+		let canvas_data = ctx.getImageData(0, 0, w, h);
+
+		// Fetch the color of each pixel on the virtual canvas, then push its R,G,B values into canvas imageData
+		for (let i=0; i<virtual_data.length; i++) {
+			let new_color_rgb = rgb_palette[virtual_data[i]];
+			canvas_data.data[4*i] = new_color_rgb[0];
+			canvas_data.data[4*i+1] = new_color_rgb[1];
+			canvas_data.data[4*i+2] = new_color_rgb[2];
+		}
+
+		// Update the canvas with revised imageData
+		ctx.putImageData(canvas_data, 0, 0);
+	}
 }
+
+
+
 
 const display = document.querySelector('.mouse-target');
 
@@ -266,7 +322,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// Set up virtual canvas
 	if (virtual_canvas.data.length < 1) {
-		virtual_canvas.init(screen_width,screen_height);
+		virtual_canvas.init_data(screen_width, screen_height);
 	}
 
 	// Calculate display width/height
@@ -282,8 +338,8 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// IMPORTANT: Use the spread operator so that we COPY these values.
 	// This will help us avoid modifying the original master resolution object.
-	current_palette = [...user_colors];
-	current_color_index = 0;
+	virtual_canvas.set_palette(user_colors);
+	virtual_canvas.set_color(0);
 
 	// Set up colors widget
 	const widget = document.querySelector('.widget-colors .palette-wrapper');
@@ -292,6 +348,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	widget.replaceChildren();
 
 	// Now, add new buttons
+	const current_palette = virtual_canvas.get_palette();
 	for (let i=0; i<current_palette.length; i++) {
 		let color_array = current_palette[i];
 		let color_rgb = atari_to_rgb(color_array);
@@ -333,14 +390,14 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 					// Keep track of whether we actually changed the color, 
 					// or just clicked the same palette square again.
 					let color_change_flag = false;
-					if (current_color_index !== parseInt(this.value)) {
+					if (virtual_canvas.get_color() !== parseInt(this.value)) {
 						color_change_flag = true;
 					}
 
 					// Once a tool has been chosen, let's removing pulsing circle.
 					document.querySelector('.pulse-container').classList.remove('color-unset');
 
-					current_color_index = parseInt(this.value);
+					virtual_canvas.set_color(parseInt(this.value));
 
 					// Toggle the active class on the buttons
 					document.querySelectorAll('.widget-colors .palette-button').forEach((button)=> {
@@ -353,11 +410,11 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 						history.add({
 							action: 'set_color',
 							params: {
-								color: current_color_index,
+								color: virtual_canvas.get_color(),
 							}
 						});
 					}
-					set_color(current_color_index, context);
+					set_color(virtual_canvas.get_color(), context);
 
 				} // end if
 			}); // end click handler
@@ -369,8 +426,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		if (!elem.hasAttribute('hasDblClickHandler')) {
 			elem.addEventListener('dblclick', function(event) {
 				// Configure the color picker so the existing color is pre-set.
-				const this_color_index = parseInt(this.value);
-				const color_atari = current_palette[this_color_index];
+				const color_atari = virtual_canvas.get_palette_color(parseInt(this.value));
 				document.querySelector('#picker-red').value = color_atari[0];
 				document.querySelector('#picker-green').value = color_atari[1];
 				document.querySelector('#picker-blue').value = color_atari[2];
@@ -424,14 +480,12 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			const g = parseInt(document.querySelector('#picker-green').value);
 			const b = parseInt(document.querySelector('#picker-blue').value);
 
-			// change_palette_color(context, current_color_index, [r,g,b]);
-
 			if (current_state !== 'rendering') {
 				// Add this action to our history stack.
 				history.add({
 					action: 'change_color',
 					params: {
-						index: current_color_index,
+						index: virtual_canvas.get_color(),
 						r: r,
 						g: g,
 						b: b,
@@ -449,7 +503,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}
 
 
-	let canvas_bg_rgb = atari_to_rgb(current_palette[0]);
+	let canvas_bg_rgb = virtual_canvas.get_rgb_palette_color(0);
 
 	// Set up the painting canvas
 	canvas.width = screen_width;
@@ -1154,8 +1208,7 @@ const history = {
 
 const renderer = {
 	cls: function() {
-		let canvas_bg_rgb = atari_to_rgb(current_palette[0]);
-		clearCanvas(context, canvas, `rgb(${canvas_bg_rgb[0]}, ${canvas_bg_rgb[1]}, ${canvas_bg_rgb[2]})`);
+		virtual_canvas.reset_data();
 	},
 	render: function() {
 		debug('!!! RENDER() BEGIN');
@@ -1177,6 +1230,9 @@ const renderer = {
 		}
 		// End with current command
 		renderer[history.present.action](history.present.params);
+
+		// We're only going to do this once at the end of the render.
+		virtual_canvas.draw(context);
 
 		// Make sure loupe is refreshed, so it doesn't go blank after undo/redo, etc.
 		update_loupe();
@@ -1230,7 +1286,7 @@ const renderer = {
 		for (point of params.points) {
 			// Use set_pixel() directly rather than fill_pixel().
 			// Polymarkers don't need to respect fill patterns.
-			set_pixel(context, point[0], point[1]);
+			set_pixel('virtual', point[0], point[1]);
 		}
 
 	},
@@ -1240,7 +1296,7 @@ const renderer = {
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 
 		// Draw the line
-		bresenhamLine(context, params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
+		bresenhamLine('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
 	},
 	draw_polyline: function(params) {
 		this.update_tool('draw_polyline');
@@ -1248,11 +1304,11 @@ const renderer = {
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 
 		// Draw first segment
-		bresenhamLine(context, params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
+		bresenhamLine('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
 
 		// Draw remaining segments
 		for (let p=1; p<params.points.length-1; p++) {
-			bresenhamLine(context, params.points[p][0], params.points[p][1], params.points[p+1][0], params.points[p+1][1]);
+			bresenhamLine('virtual', params.points[p][0], params.points[p][1], params.points[p+1][0], params.points[p+1][1]);
 		}
 	},
 	draw_rect: function(params) {
@@ -1269,21 +1325,21 @@ const renderer = {
 		];
 
 		// Draw the rectangle with fill
-		fill_rect(context, corners);
+		fill_rect('virtual', corners);
 
 		// Draw the edges of the rectangle atop the fill, if border_flag is true
 		if (border_flag) {
-			bresenhamLine(context, params.points[0][0], params.points[0][1], params.points[1][0], params.points[0][1]);
-			bresenhamLine(context, params.points[1][0], params.points[0][1], params.points[1][0], params.points[1][1]);
-			bresenhamLine(context, params.points[1][0], params.points[1][1], params.points[0][0], params.points[1][1]);
-			bresenhamLine(context, params.points[0][0], params.points[1][1], params.points[0][0], params.points[0][1]);
+			bresenhamLine('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[0][1]);
+			bresenhamLine('virtual', params.points[1][0], params.points[0][1], params.points[1][0], params.points[1][1]);
+			bresenhamLine('virtual', params.points[1][0], params.points[1][1], params.points[0][0], params.points[1][1]);
+			bresenhamLine('virtual', params.points[0][0], params.points[1][1], params.points[0][0], params.points[0][1]);
 		}
 	},
 	draw_polygon: function(params) {
 		this.update_tool('draw_polygon');
 
 		// Fill the polygon
-		fill_poly_vdi(context, params.points);
+		fill_poly_vdi('virtual', params.points);
 
 		// Draw the edges of the polygon, if border_flag is true
 		if (border_flag) {
@@ -1293,7 +1349,7 @@ const renderer = {
 					let j=i+1;
 					if (i == params.points.length-1) { j=0; }
 					bresenhamLine(
-						context,
+						'virtual',
 						params.points[i][0],
 						params.points[i][1],
 						params.points[j][0],
@@ -1321,7 +1377,7 @@ const tool_functions = {
 			history.add({
 				action: 'draw_point',
 				params: {
-					color: current_color_index,
+					color: virtual_canvas.get_color(),
 					points: [
 						[px, py]
 					]
@@ -1387,7 +1443,7 @@ const tool_functions = {
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
 
 			// Draw the temporary points
-			set_color(current_color_index, liveContext, 1);
+			set_color(virtual_canvas.get_color(), liveContext, 1);
 			for (point of tool_functions.draw_point.points) {
 				// Use set_pixel() directly rather than fill_pixel().
 				// Polymarkers don't need to respect fill patterns.
@@ -1417,7 +1473,7 @@ const tool_functions = {
 			history.add({
 				action: 'draw_point',
 				params: {
-					color: current_color_index,
+					color: virtual_canvas.get_color(),
 					points: tool_functions.draw_point.points
 				}
 			});
@@ -1461,7 +1517,7 @@ const tool_functions = {
 				history.add({
 					action: 'draw_line',
 					params: {
-						color: current_color_index,
+						color: virtual_canvas.get_color(),
 						points: [
 							[origin_x, origin_y],
 							[px, py]
@@ -1511,9 +1567,8 @@ const tool_functions = {
 				}
 
 				// Draw the temporary line
-				set_color(current_color_index, liveContext, 1);
+				set_color(virtual_canvas.get_color(), liveContext, 1);
 				bresenhamLine(liveContext, origin_x, origin_y, px, py);
-				// set_color(current_color_index, liveContext, 1);
 			}
 
 			draw_cursor(0, px, py);
@@ -1569,7 +1624,7 @@ const tool_functions = {
 				history.add({
 					action: 'draw_polyline',
 					params: {
-						color: current_color_index,
+						color: virtual_canvas.get_color(),
 						'points': tool_functions.draw_polyline.points
 					}
 				});
@@ -1597,7 +1652,7 @@ const tool_functions = {
 
 			if (current_state == 'drawing') {
 				// Set up the live context
-				set_color(current_color_index, liveContext, 1);
+				set_color(virtual_canvas.get_color(), liveContext, 1);
 
 				// Draw previous segments of the polyline
 				draw_polyline(liveContext, tool_functions.draw_polyline.points);
@@ -1652,7 +1707,7 @@ const tool_functions = {
 				history.add({
 					action: 'draw_rect',
 					params: {
-						color: current_color_index,
+						color: virtual_canvas.get_color(),
 						'points': tool_functions.draw_rect.points
 					}
 				});
@@ -1704,12 +1759,11 @@ const tool_functions = {
 
 			if (current_state == 'drawing') {
 				// Draw the edges of the temporary rectangle
-				set_color(current_color_index, liveContext, 1);
+				set_color(virtual_canvas.get_color(), liveContext, 1);
 				bresenhamLine(liveContext, origin_x, origin_y, px, origin_y);
 				bresenhamLine(liveContext, px, origin_y, px, py);
 				bresenhamLine(liveContext, px, py, origin_x, py);
 				bresenhamLine(liveContext, origin_x, py, origin_x, origin_y);
-				// set_color(current_color_index, liveContext, 1);
 			}
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
@@ -1779,7 +1833,7 @@ const tool_functions = {
 					history.add({
 						action: 'draw_polygon',
 						params: {
-							color: current_color_index,
+							color: virtual_canvas.get_color(),
 							'points': tool_functions.draw_polygon.points
 						}
 					});
@@ -1814,14 +1868,14 @@ const tool_functions = {
 					[px, py] = convert_to_45_deg([origin_x, origin_y], [px, py]);
 				}
 
-				set_color(current_color_index, liveContext, 1);
+				set_color(virtual_canvas.get_color(), liveContext, 1);
 
 				// Draw previous segments of the polyline
 				draw_polyline(liveContext, tool_functions.draw_polygon.points);
 
 				// Draw the temporary line for current segment
 				bresenhamLine(liveContext, origin_x, origin_y, px, py);
-				set_color(current_color_index, liveContext, 1);
+				set_color(virtual_canvas.get_color(), liveContext, 1);
 			}
 
 			draw_cursor(0, px, py);
@@ -1881,53 +1935,22 @@ document.querySelector('#show-overlay').addEventListener('click', function(event
 
 
 
-function update_canvas_colors(ctx) {
-	const w = ctx.canvas.width;
-	const h = ctx.canvas.height;
-
-	// Pre-calculate the RGBs for each palette spot
-	const new_colors = [];
-	for (i=0; i<current_palette.length; i++) {
-		new_colors[i] = atari_to_rgb(current_palette[i]);
-	}
-
-	// Get the arrays ready
-	let virtual_data = virtual_canvas.get_data();
-	let canvas_data = ctx.getImageData(0, 0, w, h);
-
-	// Fetch the color of each pixel on the virtual canvas, then push its R,G,B values into canvas imageData
-	for (let i=0; i<virtual_data.length; i++) {
-		let new_color_rgb = new_colors[virtual_data[i]];
-		canvas_data.data[4*i] = new_color_rgb[0];
-		canvas_data.data[4*i+1] = new_color_rgb[1];
-		canvas_data.data[4*i+2] = new_color_rgb[2];
-	}
-
-	// Update the canvas with revised imageData
-	ctx.putImageData(canvas_data, 0, 0);
-
-}
 
 
 
 function change_palette_color(ctx, current_color_index, new_color_array) {
-	// const old_color_array = current_palette[current_color_index];
-	// const old_color_rgb = atari_to_rgb(old_color_array);
 	const new_color_rgb = atari_to_rgb(new_color_array);
 
 	// Update global palette with new RGB values for this palette position
-	current_palette[current_color_index] = new_color_array;
+	virtual_canvas.update_palette(current_color_index, new_color_array);
 
 	const new_color_str = `rgb(${new_color_rgb[0]}, ${new_color_rgb[1]}, ${new_color_rgb[2]})`;
 
 	// Update color values in CSS variables
 	root.style.setProperty(`--palette-color-${current_color_index}`, new_color_str);
 
-	// Update any pixels on canvas from old color to new color
-	update_canvas_colors(ctx);
-
-	// set_color(current_color_index, ctx);
-	ctx.fillStyle = new_color_str;
+	// // NOT SURE IF THIS IS STILL NECESSARY
+	// ctx.fillStyle = new_color_str;
 
 }
 
@@ -1940,83 +1963,14 @@ function atari_to_rgb(color_array) {
 
 function set_color(color_index, ctx, opacity=1) {
 
-	const color_atari = current_palette[color_index];
-	const color_rgb = atari_to_rgb(color_atari);
-	debug(`set_color()  |  Index: ${color_index}  |  Color: ${color_atari}`);
+	const color_rgb = virtual_canvas.get_rgb_palette_color(color_index);
+
+	debug(`set_color()  |  Index: ${color_index}  |  Color: ${color_rgb}`);
 
 	ctx.fillStyle = `rgba(${color_rgb[0]}, ${color_rgb[1]}, ${color_rgb[2]}, ${opacity})`;
 }
 
 
-function rgba_to_word32(str) {
-	let values = str.match(/rgba\((\d+), (\d+), (\d+), (\d+)\)/)
-	debug(values);
-	r = parseInt(values[1]);
-	g = parseInt(values[2]);
-	b = parseInt(values[3]);
-	a = parseInt(values[4]); // May want to hardcode this as 255
-
-	// Cast the r, g, b, a integer values to bytes
-	r = r & 0xFF;
-	g = g & 0xFF;
-	b = b & 0xFF;
-	a = a & 0xFF;
-
-	debug(`  - r, g, b, a: ${r}, ${g}, ${b}, ${a}` );
-
-	const color_code = (a << 24 >>> 0) + (b << 16 >>> 0) + (g <<  8 >>> 0) + (r >>> 0);
-	debug(`  - word32: ${color_code}`);
-
-	return color_code;
-}
-
-function fillstyle_to_word32(ctx) {
-	let r, g, b, a;
-	fillStyle = ctx.fillStyle;
-	debug(`  - fillStyle: ${fillStyle}`);
-
-	// If it's an rgba() style string, then use that function.
-	if (!fillStyle.includes('#')) {
-		return rgba_to_word32(fillStyle);
-	}
-
-	// Otherwise, if it's a hex string, parse here.
-	r = parseInt(ctx.fillStyle.substring(1,3), 16);
-	g = parseInt(ctx.fillStyle.substring(3,5), 16);
-	b = parseInt(ctx.fillStyle.substring(5), 16);
-	a = 255;
-
-	// Cast the r, g, b, a integer values to bytes
-	r = r & 0xFF;
-	g = g & 0xFF;
-	b = b & 0xFF;
-	a = a & 0xFF;
-
-	debug(`  - r, g, b, a: ${r}, ${g}, ${b}, ${a}` );
-
-	const color_code = (a << 24 >>> 0) + (b << 16 >>> 0) + (g <<  8 >>> 0) + (r >>> 0);
-	debug(`  - word32: ${color_code}`);
-
-	return color_code;
-}
-
-
-function pixel_color_to_word32(ctx, x, y) {
-	let pixel = ctx.getImageData(x, y, 1, 1);
-	debug(pixel);
-
-	// Get r, g, b, a integer values, but cast them to bytes
-	const r = pixel.data[0] & 0xFF;
-	const g = pixel.data[1] & 0xFF;
-	const b = pixel.data[2] & 0xFF;
-	const a = pixel.data[3] & 0xFF; // May want to hardcode this as 255
-	debug(`  - r, g, b, a: ${r}, ${g}, ${b}, ${a}` );
-
-	const color_code = (a << 24 >>> 0) + (b << 16 >>> 0) + (g <<  8 >>> 0) + (r >>> 0);
-	debug(`  - word32: ${color_code}`);
-
-	return color_code;
-}
 
 
 // This is a wrapper for set_pixel that checks against the pattern 
@@ -2049,7 +2003,7 @@ function fill_pixel(ctx, x, y) {
 		if (current_drawing_mode == 1) {
 			set_color(0, ctx, 1);
 			set_pixel(ctx, x, y, 0);
-			set_color(current_color_index, ctx, 1);
+			set_color(virtual_canvas.get_color(), ctx, 1);
 		}
 		else if (current_drawing_mode == 2) {
 			// pass
@@ -2061,9 +2015,13 @@ function fill_pixel(ctx, x, y) {
 
 
 function set_pixel(ctx, x, y, idx=null) {
-	if (!idx) { idx = current_color_index; }
-	virtual_canvas.set_pixel(x, y, idx);
-	ctx.fillRect(x, y, 1, 1);
+	if (!idx) { idx = virtual_canvas.get_color(); }
+	if (ctx == 'virtual') {
+		virtual_canvas.set_pixel(x, y, idx);
+	}
+	else {
+		ctx.fillRect(x, y, 1, 1);
+	}
 }
 
 
