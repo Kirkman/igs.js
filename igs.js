@@ -1247,8 +1247,6 @@ const history = {
 						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
 						exp_fill_color = cmd.params.color;
 					}
-					// For now I'm manually setting fill color at draw time. This isn't efficient, and I'll need to revisit.
-					cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
 					// First parameter of POLYFILL cmd is the number of points.
 					cmd_str += `G#f>${cmd.params.points.length}`;
 					for (let p=0; p<cmd.params.points.length; p++) {
@@ -1261,6 +1259,59 @@ const history = {
 					break;
 			}
 		}
+
+		// OPTIMIZATIONS
+
+		// POINTS
+
+		// Let's search for groups of two consecutive Point commands and combine them onto a single line.
+		cmd_str = cmd_str.replace(
+			/G#P>(\d+,\d+):\r\nG#P>(\d+,\d+):\r\n/g,
+			'G#P>$1:P>$2:\r\n'
+		)
+		// Now let's search for groups of three lines with two consecutive Point commands and combine them onto a single line.
+		cmd_str = cmd_str.replace(
+			/G#P>(\d+,\d+):P>(\d+,\d+):\r\nG#P>(\d+,\d+):P>(\d+,\d+):\r\nG#P>(\d+,\d+):P>(\d+,\d+):\r\n/g,
+			'G#P>$1:P>$2:P>$3:P>$4:P>$5:P>$6:\r\n'
+		)
+		// Finally let's search for groups of two lines with two consecutive Point commands and combine them onto a single line.
+		cmd_str = cmd_str.replace(
+			/G#P>(\d+,\d+):P>(\d+,\d+):\r\nG#P>(\d+,\d+):P>(\d+,\d+):\r\n/g,
+			'G#P>$1:P>$2:P>$3:P>$4:\r\n'
+		)
+
+		// LINES
+
+		// Let's search for groups of four consecutive Line commands and combine them onto a single line.
+		cmd_str = cmd_str.replace(
+			/G#L>(\d+,\d+,\d+,\d+):\r\nG#L>(\d+,\d+,\d+,\d+):\r\n/g,
+			'G#L>$1:L>$2:\r\n'
+		)
+
+		// Finally let's search for groups of two lines with two consecutive Line commands and combine them onto a single line.
+		cmd_str = cmd_str.replace(
+			/G#L>(\d+,\d+,\d+,\d+):L>(\d+,\d+,\d+,\d+):\r\nG#L>(\d+,\d+,\d+,\d+):L>(\d+,\d+,\d+,\d+):\r\n/g,
+			'G#L>$1:L>$2:L>$3:L>$4:\r\n'
+		)
+
+		// BOXES
+
+		// Let's search for groups of two consecutive Box commands and combine them onto a single line.
+		cmd_str = cmd_str.replace(
+			/G#B>(\d+,\d+,\d+,\d+,\d+):\r\nG#B>(\d+,\d+,\d+,\d+,\d+):\r\n/g,
+			'G#B>$1:B>$2:\r\n'
+		)
+		// Now let's search for groups of three lines with two consecutive Box commands and combine them onto a single line.
+		cmd_str = cmd_str.replace(
+			/G#B>(\d+,\d+,\d+,\d+,\d+):B>(\d+,\d+,\d+,\d+,\d+):\r\nG#B>(\d+,\d+,\d+,\d+,\d+):B>(\d+,\d+,\d+,\d+,\d+):\r\nG#B>(\d+,\d+,\d+,\d+,\d+):B>(\d+,\d+,\d+,\d+,\d+):\r\n/g,
+			'G#B>$1:B>$2:B>$3:B>$4:B>$5:B>$6:\r\n'
+		)
+		// Finally let's search for groups of two lines with two consecutive Box commands and combine them onto a single line.
+		cmd_str = cmd_str.replace(
+			/G#B>(\d+,\d+,\d+,\d+,\d+):B>(\d+,\d+,\d+,\d+,\d+):\r\nG#B>(\d+,\d+,\d+,\d+,\d+):B>(\d+,\d+,\d+,\d+,\d+):\r\n/g,
+			'G#B>$1:B>$2:B>$3:B>$4:\r\n'
+		)
+
 
 
 		const a = document.createElement('a');
