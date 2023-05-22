@@ -19,12 +19,15 @@ let buffer_horiz;
 let buffer_vert;
 
 let debug_flag = false;
+let debug_mousemove = false;
+
 let mouse_is_dragging = false;
 let mouse_is_down = false;
 
 let current_tool = null;
 let current_state = null;
 let current_pattern = null;
+let current_font = null;
 let current_drawing_mode = null;
 let border_flag = null;
 let origin_x = null;
@@ -637,7 +640,9 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 				if (px <= screen_width && py <= screen_height) {
 					if (current_tool !== null) {
-						debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+						if (debug_mousemove == true) {
+							debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+						}
 						tool_functions[current_tool].mousemove(event);
 					}
 					if (current_tool !== null && current_tool == 'draw_point') {
@@ -799,6 +804,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}
 
 
+
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
 	const drawing_mode_select = document.querySelector('.widget-drawing-mode select');
@@ -823,6 +829,70 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 
 
+	// Set a pointer to the chosen color pattern
+	current_font = fonts[1];
+
+	// Set up fonts widget
+	const font_select = document.querySelector('.widget-fonts select');
+
+	// First, empty any existing buttons
+	font_select.replaceChildren();
+
+	for (let i=0; i<fonts.length; i++) {
+		let font_obj = fonts[i];
+
+		font_select.insertAdjacentHTML('beforeend', `
+			<option class="font-option font-${i}" value="${i}">${font_obj.name}</option>
+		`);
+	}
+
+
+
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	if (!font_select.hasAttribute('hasChangeHandler')) {
+		// Change handler for font widget
+		font_select.addEventListener('change', function(event) {
+			// In order to show the font icons on all browsers, we're using the multi-select interface.
+			// But we don't want to allow multiple selections. So check if someone *did* do multiple selections.
+			if (this.selectedOptions.length > 1) {
+				let wanted_opt = current_font.id;
+				for (let opt of this.selectedOptions) {
+					if (parseInt(opt.value) != parseInt(current_font.id)) {
+						wanted_opt = parseInt(opt.value);
+					}
+				}
+				this.value = wanted_opt;
+			}
+
+
+			// Set global current_font to new value.
+			const new_font_index = parseInt(this.value);
+			current_font = fonts[new_font_index];
+
+			if (current_state !== 'rendering') {
+				// Add this action to our history stack.
+				history.add({
+					action: 'change_font',
+					params: {
+						font: current_font.point, // IGS identifies fonts by point size.
+						effect: 0, // FOR NOW DEFAULT TO NORMAL. In future will support other effects.
+						rotation: 0 // FOR NOW DEFAULT TO NORMAL. In future will support other effects.
+					}
+				});
+			}
+		});
+		font_select.setAttribute('hasChangeHandler', 'true');
+	}
+
+
+
+
+
+
+
+
+
 	// Manually change the mode menu to select "Replace" as the default.
 	document.querySelector('.widget-drawing-mode select').dispatchEvent(new Event('change'));
 
@@ -833,6 +903,9 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	document.querySelector('.widget-patterns select').value = '1';
 	document.querySelector('.widget-patterns select').dispatchEvent(new Event('change'));
 
+	// Next manually set the font select to 1, and trigger the change event.
+	document.querySelector('.widget-fonts select').value = '1';
+	document.querySelector('.widget-fonts select').dispatchEvent(new Event('change'));
 
 }
 
@@ -863,6 +936,20 @@ window.addEventListener('keydown', function(event) {
 	// else if ((event.key === 'R' || event.key === 'r') && (event.ctrlKey || event.metaKey)) {
 	// 	window.location.reload();
 	// }
+
+	// We need to pass keydowns to the "write text" function
+	if (current_tool !== null && current_tool.name !== 'write_text') {
+		// JS no longer supports .keyCode(), so we have to fall back to sniffing out if the key pressed
+		// with these goofy tests.
+		if (event.key.length == 1 || (event.key.length > 1 && /[^a-zA-Z0-9]/.test(event.key)) || event.key == 'Spacebar') {
+			// We need to do this to avoid the normal behavior where hitting the space bar scrolls the webpage.
+			event.preventDefault();
+			event.stopImmediatePropagation();
+
+			debug(`Event Listener: Write_text\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			tool_functions[current_tool].keydown(event);
+		}
+	}
 });
 
 
@@ -897,6 +984,7 @@ const tools = [
 	{ 'name': 'Draw polyline', 'function': 'draw_polyline' },
 	{ 'name': 'Draw filled rectangle', 'function': 'draw_rect' },
 	{ 'name': 'Draw filled polygon', 'function': 'draw_polygon' },
+	{ 'name': 'Write text', 'function': 'write_text' },
 ];
 
 // Set up tools widget
@@ -925,7 +1013,7 @@ function draw_cursor(sprite_num, px, py) {
 
 	// NAIVE!!! THIS ROUTINE DOESN'T YET ACCOUNT FOR MULTIPLE ROWS ON THE SPRITE SHEET.
 	const sprite_x = sprite_w * sprite_num;
-	const sprite_y = sprite_w * sprite_num;
+	const sprite_y = 0;
 
 	const dx = px - icon_offset_x + buffer_size;
 	const dy = py - icon_offset_y + buffer_size;
@@ -1478,6 +1566,19 @@ const renderer = {
 				}
 			}
 		}
+	},
+	change_font: function(params) {
+		// Manually trigger a click on the pattern we're choosing so it will be selected in the interface
+		document.querySelector('.widget-fonts select').value = fonts.find(d => d.point == params.font).id;
+		document.querySelector('.widget-fonts select').dispatchEvent(new Event('change'));
+
+		// TK TK TK: effects and rotation
+	},
+	write_text: function(params) {
+		this.update_tool('write_text');
+
+		// Put text on the screen
+		write_text_vdi('virtual', params.text, params.points);
 	}
 }
 
@@ -1523,7 +1624,9 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			debug(`draw_point mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			if (debug_mousemove == true) {
+				debug(`draw_point mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -1669,7 +1772,9 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			debug(`draw_line mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			if (debug_mousemove == true) {
+				debug(`draw_line mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -1761,7 +1866,9 @@ const tool_functions = {
 
 		},
 		mousemove: function(event) {
-			debug(`draw_polyline mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			if (debug_mousemove == true) {
+				debug(`draw_polyline mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -1868,7 +1975,9 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			debug(`draw_rect mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			if (debug_mousemove == true) {
+				debug(`draw_rect mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -1972,7 +2081,9 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			debug(`draw_polygon mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			if (debug_mousemove == true) {
+				debug(`draw_polygon mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -2001,6 +2112,113 @@ const tool_functions = {
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
 			update_status(px, py);
+		}
+	},
+	write_text: {
+		points: [],
+		text: '',
+		onclick: function(event) {
+			debug(`write_text click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
+
+			// Start state means first click
+			if (current_state == 'start') {
+				current_state = 'drawing';
+
+				// Add the origin for the text
+				tool_functions.write_text.points.push([px, py]);
+			}
+
+			// We'll treat a second click as the end of text entry.
+			else if (current_state == 'drawing') {
+				// Reset the cursor layer to get rid of the preview text
+				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+				clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+				draw_cursor(3, px, py);
+
+				// Add this action to our history stack.
+				history.add({
+					action: 'write_text',
+					params: {
+						color: virtual_canvas.get_color(),
+						effect: 0, // hard-coded for now
+						rotation: 0, // hard-coded for now
+						text: tool_functions.write_text.text,
+						points: tool_functions.write_text.points
+					}
+				});
+
+				// Reset all variables
+				tool_functions.write_text.text = '';
+				tool_functions.write_text.points = [];
+				current_state = 'start';
+
+				// Redraw everything
+				renderer.render();
+			}
+		},
+		// When we see a right click, we need to cancel the text.
+		onrightclick: function(event) {
+			debug(`write_text right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
+
+			// Reset the cursor layer to get rid of the guide line
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+			draw_cursor(3, px, py);
+
+			if (current_state == 'drawing') {
+				// Reset all variables
+				tool_functions.write_text.text = '';
+				tool_functions.write_text.points = [];
+			}
+			current_state = 'start';
+		},
+		mousemove: function(event) {
+			if (debug_mousemove == true) {
+				debug(`write_text mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+
+			// In this initial version I'm not supporting moving text around. 
+			if (current_state == 'drawing') {
+			}
+
+			draw_cursor(3, px, py);
+			update_loupe(px, py);
+			update_status(px, py);
+		},
+		keydown: function(event) {
+			debug(`write_text keydown\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+
+			if (event.key == 'Spacebar') {
+				tool_functions.write_text.text += ' ';
+			}
+			else {
+				tool_functions.write_text.text += event.key;
+			}
+
+			if (current_state == 'drawing') {
+				// Set up the live context
+				set_color(virtual_canvas.get_color(), liveContext, 1);
+				// Write the temporary letters
+				write_text_vdi(liveContext, tool_functions.write_text.text, tool_functions.write_text.points);
+			}
 		}
 	}
 }
@@ -2195,7 +2413,7 @@ function bresenhamLine(ctx, x0, y0, x1, y1) {
 	var err = dx-dy;
 
 	while(true) {
-		set_pixel(ctx, x0,y0);
+		set_pixel(ctx, x0, y0);
 
 		if ((x0==x1) && (y0==y1)) break;
 		var e2 = 2*err;
@@ -2280,24 +2498,53 @@ function bresenhamBezierCurve(ctx, x0, y0, x1, y1, x2, y2) {
 			if (    y1    ) { y0 += sy; dy -= xy; err += dx += xx; } /* y step */
 		};           /* gradient negates -> algorithm fails */
 	}
-	bresenhamLine(ctx, x0,y0, x2,y2);                  /* plot remaining part to end */
+	bresenhamLine(ctx, x0, y0, x2, y2);                  /* plot remaining part to end */
 } 
 
 
 
 
 
-function check_intersect(a, b) {
-	// We only need to compare the X-coordinates, so let's flatten to one-dimensional by dropping Y coord.
-	const c = a.map(point => point[0]);
-	const d = b.map(point => point[0]);
+// function check_intersect(a, b) {
+// 	// We only need to compare the X-coordinates, so let's flatten to one-dimensional by dropping Y coord.
+// 	const c = a.map(point => point[0]);
+// 	const d = b.map(point => point[0]);
 
-	const intersection = c.filter(value => d.includes(value));
+// 	const intersection = c.filter(value => d.includes(value));
 
-	if (intersection.length > 0) { return true; }
+// 	if (intersection.length > 0) { return true; }
 
-	return false;
+// 	return false;
+// }
+
+
+
+function write_text_vdi(ctx, text, points) {
+	let chars = text.split('').map(c => c.charCodeAt(0));
+
+	// By default text is left-aligned, so X coordinate is good as-is.
+	let src_x = points[0][0];
+	// By default text is baseline-aligned, so we have to calculate an offset to make sure font baseline is where user clicked.
+	let src_y = points[0][1] - (current_font.form_height - current_font.bottom);
+
+	for (let i=0; i<chars.length; i++) {
+		let char = chars[i];
+		let x_offset = i*current_font.max_cell_width;
+		let char_data = current_font.characters[char];
+
+		for (var y=0; y<char_data.length; y++) {
+			for (var x=0; x<char_data[y].length; x++) {
+				let dx = src_x + x_offset + x;
+				let dy = src_y + y;
+				if (char_data[y][x] == 1) {
+					set_pixel(ctx, dx, dy);
+				}
+			}
+		}
+	}
 }
+
+
 
 
 function fill_rect(ctx, corners) {
