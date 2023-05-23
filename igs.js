@@ -937,11 +937,22 @@ window.addEventListener('keydown', function(event) {
 	// 	window.location.reload();
 	// }
 
+	const non_ascii_allowed = [
+		'Spacebar',
+		'Backspace',
+		'ArrowLeft',
+		'ArrowRight',
+		'ArrowUp',
+		'ArrowDown',
+		'Enter',
+		'Return',
+	];
+
 	// We need to pass keydowns to the "write text" function
 	if (current_tool !== null && current_tool.name !== 'write_text') {
 		// JS no longer supports .keyCode(), so we have to fall back to sniffing out if the key pressed
 		// with these goofy tests.
-		if (event.key.length == 1 || (event.key.length > 1 && /[^a-zA-Z0-9]/.test(event.key)) || event.key == 'Spacebar') {
+		if (event.key.length == 1 || (event.key.length > 1 && /[^a-zA-Z0-9]/.test(event.key)) || non_ascii_allowed.includes(event.key)) {
 			// We need to do this to avoid the normal behavior where hitting the space bar scrolls the webpage.
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -2115,8 +2126,43 @@ const tool_functions = {
 		}
 	},
 	write_text: {
+		insertion_point: 0,
 		points: [],
 		text: '',
+		last_mouse_pos: [],
+		finish_text: function(pos) {
+			if (pos == undefined) {
+				pos = tool_functions.write_text.last_mouse_pos;
+			}
+			let px = pos[0];
+			let py = pos[1];
+
+			// Reset the cursor layer to get rid of the preview text
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+			draw_cursor(3, px, py);
+
+			// Add this action to our history stack.
+			history.add({
+				action: 'write_text',
+				params: {
+					color: virtual_canvas.get_color(),
+					effect: 0, // hard-coded for now
+					rotation: 0, // hard-coded for now
+					text: tool_functions.write_text.text,
+					points: tool_functions.write_text.points
+				}
+			});
+
+			// Reset all variables
+			tool_functions.write_text.insertion_point = 0;
+			tool_functions.write_text.text = '';
+			tool_functions.write_text.points = [];
+			current_state = 'start';
+
+			// Redraw everything
+			renderer.render();
+		},
 		onclick: function(event) {
 			debug(`write_text click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -2125,50 +2171,29 @@ const tool_functions = {
 			let [px, py] = translate_to_screen(sx, sy);
 			[px, py] = checkBounds(context, px, py);
 
+			tool_functions.write_text.last_mouse_pos = [px, py];
+
 			// Start state means first click
 			if (current_state == 'start') {
 				current_state = 'drawing';
 
 				// Add the origin for the text
 				tool_functions.write_text.points.push([px, py]);
+
+				// Set up the live context for drawing insertion point
+				set_color(1, liveContext, 1);
+				draw_insertion_point(liveContext, tool_functions.write_text.points, tool_functions.write_text.insertion_point);
+
 			}
 
 			// We'll treat a second click as the end of text entry.
 			else if (current_state == 'drawing') {
-				// Reset the cursor layer to get rid of the preview text
-				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
-				clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
-				draw_cursor(3, px, py);
-
-				// Add this action to our history stack.
-				history.add({
-					action: 'write_text',
-					params: {
-						color: virtual_canvas.get_color(),
-						effect: 0, // hard-coded for now
-						rotation: 0, // hard-coded for now
-						text: tool_functions.write_text.text,
-						points: tool_functions.write_text.points
-					}
-				});
-
-				// Reset all variables
-				tool_functions.write_text.text = '';
-				tool_functions.write_text.points = [];
-				current_state = 'start';
-
-				// Redraw everything
-				renderer.render();
+				tool_functions.write_text.finish_text([px, py]);
 			}
 		},
 		// When we see a right click, we need to cancel the text.
 		onrightclick: function(event) {
 			debug(`write_text right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
-			let sx = event.layerX;
-			let sy = event.layerY;
-			let [px, py] = translate_to_screen(sx, sy);
-			[px, py] = checkBounds(context, px, py);
 
 			// Reset the cursor layer to get rid of the guide line
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -2177,6 +2202,7 @@ const tool_functions = {
 
 			if (current_state == 'drawing') {
 				// Reset all variables
+				tool_functions.write_text.insertion_point = 0;
 				tool_functions.write_text.text = '';
 				tool_functions.write_text.points = [];
 			}
@@ -2190,6 +2216,8 @@ const tool_functions = {
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
+
+			tool_functions.write_text.last_mouse_pos = [px, py];
 
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
 
@@ -2208,9 +2236,41 @@ const tool_functions = {
 
 			if (event.key == 'Spacebar') {
 				tool_functions.write_text.text += ' ';
+				if (tool_functions.write_text.insertion_point < tool_functions.write_text.text.length) {
+					tool_functions.write_text.insertion_point += 1;
+				}
+			}
+			else if (event.key == 'Return' || event.key == 'Enter') {
+				tool_functions.write_text.finish_text();
+			}
+			else if (event.key == 'Backspace') {
+				tool_functions.write_text.text = 
+					tool_functions.write_text.text.substring(0,tool_functions.write_text.insertion_point-1) + 
+					tool_functions.write_text.text.substring(tool_functions.write_text.insertion_point, tool_functions.write_text.insertion_point.length)
+				;
+				if (tool_functions.write_text.insertion_point > 0) {
+					tool_functions.write_text.insertion_point -= 1;
+				}
+			}
+			else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) {
+				if (tool_functions.write_text.insertion_point > 0) {
+					tool_functions.write_text.insertion_point -= 1;
+				}
+			}
+			else if (['ArrowRight', 'ArrowDown'].includes(event.key)) {
+				if (tool_functions.write_text.insertion_point < tool_functions.write_text.text.length) {
+					tool_functions.write_text.insertion_point += 1;
+				}
 			}
 			else {
-				tool_functions.write_text.text += event.key;
+				tool_functions.write_text.text = 
+					tool_functions.write_text.text.substring(0, tool_functions.write_text.insertion_point) + 
+					event.key + 
+					tool_functions.write_text.text.substring(tool_functions.write_text.insertion_point)
+				;
+				if (tool_functions.write_text.insertion_point < tool_functions.write_text.text.length) {
+					tool_functions.write_text.insertion_point += 1;
+				}
 			}
 
 			if (current_state == 'drawing') {
@@ -2218,6 +2278,9 @@ const tool_functions = {
 				set_color(virtual_canvas.get_color(), liveContext, 1);
 				// Write the temporary letters
 				write_text_vdi(liveContext, tool_functions.write_text.text, tool_functions.write_text.points);
+				// Set up the live context for drawing insertion point
+				set_color(1, liveContext, 1);
+				draw_insertion_point(liveContext, tool_functions.write_text.points, tool_functions.write_text.insertion_point);
 			}
 		}
 	}
@@ -2517,6 +2580,24 @@ function bresenhamBezierCurve(ctx, x0, y0, x1, y1, x2, y2) {
 // 	return false;
 // }
 
+
+function draw_insertion_point(ctx, points, ip) {
+	// By default text is left-aligned, so X coordinate is good as-is.
+	let src_x = points[0][0];
+	// By default text is baseline-aligned, so we have to calculate an offset to make sure font baseline is where user clicked.
+	let src_y = points[0][1] - (current_font.form_height - current_font.bottom);
+
+	let x_offset = ip * current_font.max_cell_width;
+
+	let height = current_font.form_height;
+
+	let x = src_x + x_offset;
+	let y0 = src_y;
+	let y1 = src_y + height;
+
+	bresenhamLine(ctx, x, y0, x, y1);
+
+}
 
 
 function write_text_vdi(ctx, text, points) {
