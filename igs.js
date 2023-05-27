@@ -486,6 +486,19 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		}
 	});
 
+	// Click handler for cancel button
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	const color_choose_cancel = document.querySelector('.widget-color-picker .cancel');
+	if (!color_choose_cancel.hasAttribute('hasClickHandler')) {
+		color_choose_cancel.addEventListener('click', function(event) {
+			// Close the modal
+			document.querySelector('.modal-wrapper').classList.add('hidden');
+			document.querySelector('.widget-color-picker').classList.add('hidden');
+		});
+		color_choose_cancel.setAttribute('hasClickHandler', 'true');
+	}
+
 	// Click handler for use-this-color button
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
