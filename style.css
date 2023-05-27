@@ -47,6 +47,7 @@
 	/* Right now I'm using a loupe grid of 21 x 21, which seems too large. */
 	--loupe-size: 21;
 	--loupe-width: calc((var(--loupe-size) * var(--horizontal-scale) * 4 * 1px) + 1px);
+	--loupe-height: calc((var(--loupe-size) * var(--vertical-scale) * 4 * 1px) + 1px);
 
 	/* 6px-buffer around the canvas to make it easier to work on edges and corners */
 	--buffer-size: 6;
@@ -454,7 +455,7 @@ button.color-choose {
 	/* Multiplying by 1px converts to px units */
 	/* Add 1px to allow for right-edge and bottom-edge grid borders */
 	width: var(--loupe-width);
-	height: calc((var(--loupe-size) * var(--vertical-scale) * 4 * 1px) + 1px);
+	height: var(--loupe-height);
 }
 
 .loupe-grid {
@@ -475,8 +476,8 @@ button.color-choose {
 .loupe-pixel {
 	z-index: 1;
 	position: absolute;
-	top: calc(((var(--loupe-size) - 1) / 2) * var(--horizontal-scale) * 4 * 1px);
-	left: calc(((var(--loupe-size) - 1) / 2) * var(--vertical-scale) * 4 * 1px);
+	top: calc(((var(--loupe-size) - 1) / 2) * var(--vertical-scale) * 4 * 1px);
+	left: calc(((var(--loupe-size) - 1) / 2) * var(--horizontal-scale) * 4 * 1px);
 	display:  block;
 	width: calc(var(--horizontal-scale) * 4 * 1px + 1px);
 	height: calc(var(--vertical-scale) * 4 * 1px + 1px );
