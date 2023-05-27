@@ -18,7 +18,7 @@ let buffer_size = parseInt(root_style.getPropertyValue('--buffer-size'));
 let buffer_horiz;
 let buffer_vert;
 
-let debug_flag = false;
+let debug_flag = true;
 let debug_mousemove = false;
 
 let mouse_is_dragging = false;
@@ -269,10 +269,11 @@ select_resolutions.addEventListener('change', function(event) {
 
 	// Populate select
 	const widget = document.querySelector('.widget-palettes select');
+	// First, empty any existing color schemes
+	widget.replaceChildren();
 	for (let elem of user_resolution.palettes) {
 		widget.insertAdjacentHTML('beforeend', `<option value="${elem.id}">${elem.name}</option>`);
 	}
-
 });
 
 
@@ -539,8 +540,8 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	clearCanvas(patternContext, patternCanvas, 'rgba(0,0,0,0)');
 
 	// Set up the cursor overlay -- Its dimensions are larger to align with buffer
-	cursorCanvas.width = screen_width + (buffer_size*2);
-	cursorCanvas.height = screen_height + (buffer_size*2);
+	cursorCanvas.width = screen_width + (buffer_horiz/scale_horiz*2);
+	cursorCanvas.height = screen_height + (buffer_vert/scale_vert*2);
 	disableSmoothing(cursorContext);
 	clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
 
@@ -1465,8 +1466,8 @@ const renderer = {
 		document.querySelector('.widget-tools select').dispatchEvent(new Event('change'));
 	},
 	set_resolution: function(params) {
-		// For now we'll default to low rez.
-		set_resolution_palette('atari_st_low', params.palette_id, starting_new=false);
+		let resolution_slug = resolutions[params.resolution].slug;
+		set_resolution_palette(resolution_slug, params.palette_id, starting_new=false);
 	},
 	set_color: function(params) {
 		// Manually trigger a click on the color we're choosing so it will be selected in the interface
@@ -2601,6 +2602,17 @@ function draw_insertion_point(ctx, points, ip) {
 
 
 function write_text_vdi(ctx, text, points) {
+	let cw, ch;
+	if (ctx == 'virtual') {
+		cw = virtual_canvas.width;
+		ch = virtual_canvas.height;
+	}
+	else {
+		cw = ctx.canvas.width;
+		ch = ctx.canvas.height;
+	}
+
+	// Split the string into an array of ASCII character codes
 	let chars = text.split('').map(c => c.charCodeAt(0));
 
 	// By default text is left-aligned, so X coordinate is good as-is.
@@ -2608,17 +2620,27 @@ function write_text_vdi(ctx, text, points) {
 	// By default text is baseline-aligned, so we have to calculate an offset to make sure font baseline is where user clicked.
 	let src_y = points[0][1] - (current_font.form_height - current_font.bottom);
 
+	// Iterate over each character in the string
 	for (let i=0; i<chars.length; i++) {
+		// Load the raw character pixel data
 		let char = chars[i];
-		let x_offset = i*current_font.max_cell_width;
 		let char_data = current_font.characters[char];
+		// Calculate the offset for this character 
+		let x_offset = i * current_font.max_cell_width;
 
+		// Iterate over each column in the character data
 		for (var y=0; y<char_data.length; y++) {
+			// Iterate over each row in this col of the character data
 			for (var x=0; x<char_data[y].length; x++) {
-				let dx = src_x + x_offset + x;
-				let dy = src_y + y;
+				// Only proceed if this pixel is supposed to be drawn.
 				if (char_data[y][x] == 1) {
-					set_pixel(ctx, dx, dy);
+					// Calculate the destination coordinates on the canvas
+					let dx = src_x + x_offset + x;
+					let dy = src_y + y;
+					// Only set the pixel if it's within canvas bounds
+					if (dx > -1 && dx < cw && dy > -1 && dy < ch) {
+						set_pixel(ctx, dx, dy);
+					}
 				}
 			}
 		}

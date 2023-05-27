@@ -131,28 +131,28 @@ const resolutions = [
 				]
 			}
 		]
-	// },
-	// {
-	// 	'name': 'Atari ST med (640x200, 4 colors)',
-	// 	'slug': 'atari_st_medium',
-	// 	'system': 'atari_st',
-	// 	'mode': 'medium',
-	// 	'id': 1,
-	// 	'width': 640,
-	// 	'height': 200,
-	// 	'palettes': [
-	// 		{
-	// 			'name': 'Atari ST default',
-	// 			'slug': 'atari_st_4_default',
-	// 			'id': 0,
-	// 			'colors': [
-	// 				[0,0,0], // black
-	// 				[7,7,7], // white
-	// 				[7,0,0], // red
-	// 				[0,7,0], // green
-	// 			]
-	// 		}
-	// 	]
+	},
+	{
+		'name': 'Atari ST med (640x200, 4 colors)',
+		'slug': 'atari_st_medium',
+		'system': 'atari_st',
+		'mode': 'medium',
+		'id': 1,
+		'width': 640,
+		'height': 200,
+		'palettes': [
+			{
+				'name': 'Atari ST default',
+				'slug': 'atari_st_4_default',
+				'id': 0,
+				'colors': [
+					[7,7,7], // white
+					[0,0,0], // black
+					[7,0,0], // red
+					[0,7,0], // green
+				]
+			}
+		]
 	}
 ];
 

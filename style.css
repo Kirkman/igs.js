@@ -382,8 +382,8 @@ button.color-choose {
 #cursor-overlay {
 	position:  absolute;
 	z-index: 2;
-	top: calc(var(--horiz-buffer) * -1);
-	left: calc(var(--vert-buffer) * -1);
+	top: calc(var(--vert-buffer) * -1);
+	left: calc(var(--horiz-buffer) * -1);
 	width: calc(var(--display-width) + var(--horiz-buffer) + var(--horiz-buffer));
 	height: calc(var(--display-height) + var(--vert-buffer) + var(--vert-buffer));
 }
