@@ -5,6 +5,7 @@ This is an experimental art program for drawing images that can be exported in t
 
 The goal was to make a simple, browser-based app that to make creating IGS art more accessible, since the existing Atari ST-based tools can be difficult to use.
 
+![JoshDraw screenshot](/screenshots/screenshot.png)
 
 Try JoshDraw
 ------------
@@ -13,16 +14,16 @@ You can [try JoshDraw right now](https://breakintochat.com/atari/igs.js/), hoste
 
 It implements only a subset of IGS commands:
 
-	* Pencil (1-pixel polymarker)
-	* Draw line
-	* Draw polyline
-	* Draw polygon
-	* Draw filled rectangle
-	* Draw filled polygon
-	* Write text
-	* Text effects (font size only)
-	* Fill patterns 2,1 to 2,8 and 3,7 to 3,12
-	* Drawing modes 2 (transparent) and 1 (replace/overwrite)
+* Pencil (1-pixel polymarker)
+* Draw line
+* Draw polyline
+* Draw polygon
+* Draw filled rectangle
+* Draw filled polygon
+* Write text
+* Text effects (font size only)
+* Fill patterns 2,1 to 2,8 and 3,7 to 3,12
+* Drawing modes 2 (transparent) and 1 (replace/overwrite)
 
 I don't intend to add support for animation or sound effects. My goal is limited to making it possible to draw static screens.
 
