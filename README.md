@@ -1,7 +1,7 @@
 igs.js (JoshDraw)
 =================
 
-This is an experimental art program for drawing images that can be exported in the ["Instant Graphics and Sound" (IGS)](https://breakintochat.com/wiki/Instant_Graphics_and_Sound_(IGS)) format.
+[JoshDraw](https://breakintochat.com/atari/igs.js/) is an experimental art program for drawing images that can be exported in the ["Instant Graphics and Sound" (IGS)](https://breakintochat.com/wiki/Instant_Graphics_and_Sound_(IGS)) format.
 
 The goal was to make a simple, browser-based app that to make creating IGS art more accessible, since the existing Atari ST-based tools can be difficult to use.
 
@@ -42,7 +42,7 @@ Not a release
 
 * The code in this repository is awful and hacky, and is not really meant for public consumption.
 
-* The line algorithms needs to be tweaked to make it better match the ST. (Filled polygon algorithm, though, has been updated with new code derived from EmuTOS)
+* The line algorithms need to be tweaked to better match the ST. (Filled polygon algorithm, though, has been updated with new code derived from EmuTOS)
 
 
 
