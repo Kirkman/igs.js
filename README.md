@@ -5,7 +5,7 @@ This is an experimental art program for drawing images that can be exported in t
 
 The goal was to make a simple, browser-based app that to make creating IGS art more accessible, since the existing Atari ST-based tools can be difficult to use.
 
-![JoshDraw screenshot](/screenshots/screenshot.png)
+![JoshDraw screenshot](/supplemental-info/screenshots/screenshot.png)
 
 Try JoshDraw
 ------------
