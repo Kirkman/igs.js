@@ -1620,7 +1620,7 @@ const renderer = {
 	blit: function(params) {
 		this.update_tool('blit');
 
-		// Fill_rect wants all four corners, but history saves only upper left and lower right.
+		// blit_rect wants all four corners, but history saves only upper left and lower right.
 		const source_corners = [
 			params.source_points[0], 
 			[params.source_points[1][0], params.source_points[0][1]], 
@@ -1628,7 +1628,7 @@ const renderer = {
 			[params.source_points[0][0], params.source_points[1][1]], 
 		];
 
-		blit_rect('virtual', source_corners, params.dest_points);
+		blit_rect('virtual', source_corners, params.dest_points, params.mode);
 
 	},
 
@@ -2299,6 +2299,8 @@ const tool_functions = {
 		dest_points: [],
 		source_width: null,
 		source_height: null,
+		type: 0, // Screen to screen
+		mode: 3, // Replace mode (dest=S)
 		onclick: function(event) {
 			debug(`blit click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -2350,8 +2352,8 @@ const tool_functions = {
 				history.add({
 					action: 'blit',
 					params: {
-						'type': '0', // Screen to screen
-						'mode': '3', // Replace mode (dest=S)
+						'type': tool_functions.blit.type, 
+						'mode': tool_functions.blit.mode, 
 						'source_points': tool_functions.blit.source_points,
 						'dest_points': tool_functions.blit.dest_points
 					}
@@ -2360,6 +2362,9 @@ const tool_functions = {
 				// Reset all variables
 				origin_x = null;
 				origin_y = null;
+				// // Once I add the ability to change blit modes and/or types, I will need to reset those values here.
+				// tool_functions.blit.type = null;
+				// tool_functions.blit.mode = null;
 				tool_functions.blit.source_points = [];
 				tool_functions.blit.dest_points = [];
 				tool_functions.blit.source_width = null;
@@ -2391,6 +2396,9 @@ const tool_functions = {
 				// Reset all variables
 				origin_x = null;
 				origin_y = null;
+				// // Once I add the ability to change blit modes and/or types, I will need to reset those values here.
+				// tool_functions.blit.type = null;
+				// tool_functions.blit.mode = null;
 				tool_functions.blit.source_points = [];
 				tool_functions.blit.dest_points = [];
 				tool_functions.blit.source_width = null;
@@ -2420,22 +2428,16 @@ const tool_functions = {
 			}
 
 			if (current_state == 'moving') {
-				// Draw the edges of the temporary rectangle
-				set_color(virtual_canvas.get_color(), liveContext, 1);
-
-				const dest_x1 = px + tool_functions.blit.source_width;
-				const dest_y1 = py + tool_functions.blit.source_height;
-
-				// Fill_rect wants all four corners, but history saves only upper left and lower right.
-				const corners = [
-					[px, py],
-					[px, dest_y1],
-					[dest_x1, py],
-					[dest_x1, dest_y1]
+				// blit_rect wants all four corners, but history saves only upper left and lower right.
+				const source_corners = [
+					tool_functions.blit.source_points[0], 
+					[tool_functions.blit.source_points[1][0], tool_functions.blit.source_points[0][1]], 
+					tool_functions.blit.source_points[1], 
+					[tool_functions.blit.source_points[0][0], tool_functions.blit.source_points[1][1]], 
 				];
 
-				// Draw the rectangle with fill
-				fill_rect(liveContext, corners);
+				blit_rect(liveContext, source_corners, [[px, py]], tool_functions.blit.mode);
+
 			}
 
 			draw_cursor(0, px, py);
@@ -2755,6 +2757,9 @@ function set_pixel(ctx, x, y, idx=null) {
 		virtual_canvas.set_pixel(x, y, idx);
 	}
 	else {
+		// if (idx != null) {
+		// 	set_color(idx, ctx);
+		// }
 		ctx.fillRect(x, y, 1, 1);
 	}
 }
@@ -2988,9 +2993,16 @@ function write_text_vdi(ctx, text, points) {
 	}
 }
 
-function blit_rect(ctx, corners, dest) {
-	// console.log(corners);
-	// console.log(dest);
+function blit_rect(ctx, corners, dest, mode) {
+	let cw, ch;
+	if (ctx == 'virtual') {
+		cw = virtual_canvas.width;
+		ch = virtual_canvas.height;
+	}
+	else {
+		cw = ctx.canvas.width;
+		ch = ctx.canvas.height;
+	}
 
 	const source_x0 = Math.min(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
 	const source_x1 = Math.max(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
@@ -3001,16 +3013,82 @@ function blit_rect(ctx, corners, dest) {
 	const offset_x = dest[0][0] - source_x0;
 	const offset_y = dest[0][1] - source_y0;
 
-	// console.log(source_x0, source_x1);
-	// console.log(source_y0, source_y1);
-	// console.log(offset_x, offset_y);
 
 	for (let y=source_y0; y<source_y1+1; y++) {
 		for (let x=source_x0; x<source_x1+1; x++) {
-			source_idx = virtual_canvas.get_pixel(x, y);
-			virtual_canvas.set_pixel(x+offset_x, y+offset_y, source_idx);
+			const dx = x+offset_x;
+			const dy = y+offset_y;
+
+			// Skip to next loop iteration if this destination pixel is not within canvas bounds.
+			if (!(dx > -1 && dx < cw && dy > -1 && dy < ch)) {
+				continue;
+			}
+
+			const S = virtual_canvas.get_pixel(x, y);
+			const D = virtual_canvas.get_pixel(dx, dy);
+
+			let new_idx = S;
+
+			if (mode == 0) {
+				new_idx = 0;
+			}
+			else if (mode == 1) {
+				new_idx = (S & D);
+			}
+			else if (mode == 2) {
+				new_idx = (S & (~D));
+			}
+			else if (mode == 3) {
+				new_idx = (S);
+			}
+			else if (mode == 4) {
+				new_idx = ((~S) & D);
+			}
+			else if (mode == 5) {
+				new_idx = (D);
+			}
+			else if (mode == 6) {
+				new_idx = (S ^ D);
+			}
+			else if (mode == 7) {
+				new_idx = (S | D);
+			}
+			else if (mode == 8) {
+				new_idx = (~(S | D));
+			}
+			else if (mode == 9) {
+				new_idx = (~(S ^ D));
+			}
+			else if (mode == 10) {
+				new_idx = (~ D);
+			}
+			else if (mode == 11) {
+				new_idx = (S | (~D));
+			}
+			else if (mode == 12) {
+				new_idx = (~S);
+			}
+			else if (mode == 13) {
+				new_idx = ((~S) | D);
+			}
+			else if (mode == 14) {
+				new_idx = (~(S & D));
+			}
+			else if (mode == 15) {
+				new_idx = 1;
+			}
+			else {
+				throw new Error('COULD NOT PARSE MODE.')
+			}
+
+			// To make the blit rectangle show up on mousemove, I have to explicitly set the color here.
+			set_color(new_idx, ctx);
+
+			set_pixel(ctx, dx, dy, new_idx);
+
 		}
 	}
+
 }
 
 
