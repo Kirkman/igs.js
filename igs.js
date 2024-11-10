@@ -582,7 +582,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 				return false;
 			}
 			// Otherwise check if this is a valid click.
-			if (current_tool !== null && current_tool.name !== 'draw_point') {
+			if (current_tool !== null && current_tool !== 'draw_point') {
 				debug(`Event Listener: Click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 				tool_functions[current_tool].onclick(event);
 			}
@@ -963,7 +963,7 @@ window.addEventListener('keydown', function(event) {
 	];
 
 	// We need to pass keydowns to the "write text" function
-	if (current_tool !== null && current_tool.name !== 'write_text') {
+	if (current_tool !== null && current_tool == 'write_text') {
 		// JS no longer supports .keyCode(), so we have to fall back to sniffing out if the key pressed
 		// with these goofy tests.
 		if (event.key.length == 1 || (event.key.length > 1 && /[^a-zA-Z0-9]/.test(event.key)) || non_ascii_allowed.includes(event.key)) {
@@ -2477,8 +2477,9 @@ const tool_functions = {
 
 			// Reset all variables
 			tool_functions.write_text.insertion_point = 0;
-			tool_functions.write_text.text = '';
 			tool_functions.write_text.points = [];
+			tool_functions.write_text.text = '';
+			tool_functions.write_text.last_mouse_pos = [];
 			current_state = 'start';
 
 			// Redraw everything
@@ -2516,6 +2517,11 @@ const tool_functions = {
 		onrightclick: function(event) {
 			debug(`write_text right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
+
 			// Reset the cursor layer to get rid of the guide line
 			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
@@ -2524,8 +2530,9 @@ const tool_functions = {
 			if (current_state == 'drawing') {
 				// Reset all variables
 				tool_functions.write_text.insertion_point = 0;
-				tool_functions.write_text.text = '';
 				tool_functions.write_text.points = [];
+				tool_functions.write_text.text = '';
+				tool_functions.write_text.last_mouse_pos = [];
 			}
 			current_state = 'start';
 		},
