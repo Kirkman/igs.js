@@ -1009,6 +1009,7 @@ const tools = [
 	{ 'name': 'Draw polyline', 'function': 'draw_polyline' },
 	{ 'name': 'Draw filled rectangle', 'function': 'draw_rect' },
 	{ 'name': 'Draw filled polygon', 'function': 'draw_polygon' },
+	{ 'name': 'Draw circle', 'function': 'draw_circle' },
 	{ 'name': 'Write text', 'function': 'write_text' },
 ];
 
@@ -1370,6 +1371,15 @@ const history = {
 						}
 					}
 					break;
+				case 'draw_circle':
+					if (exp_fill_color !== cmd.params.color) {
+						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
+						exp_fill_color = cmd.params.color;
+					}
+					// !!! Need to add logic for handling IGS' "Hollow" command
+					// which controls whether circle is drawn filled or as an outline. !!!
+					cmd_str += `G#O>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.radius}:\r\n`;
+					break;
 			}
 		}
 
@@ -1566,6 +1576,20 @@ const renderer = {
 			bresenhamLine('virtual', params.points[1][0], params.points[0][1], params.points[1][0], params.points[1][1]);
 			bresenhamLine('virtual', params.points[1][0], params.points[1][1], params.points[0][0], params.points[1][1]);
 			bresenhamLine('virtual', params.points[0][0], params.points[1][1], params.points[0][0], params.points[0][1]);
+		}
+	},
+
+	draw_circle: function(params) {
+		this.update_tool('draw_circle');
+		// My command history includes a `color` param, but I probably shouldn't be including that. 
+		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
+
+		// Draw the rectangle with fill
+		fill_circle('virtual', params.center[0], params.center[1], params.radius);
+
+		// Draw the edges of the rectangle atop the fill, if border_flag is true
+		if (border_flag) {
+			draw_circle('virtual', params.center[0], params.center[1], params.radius);
 		}
 	},
 	draw_polygon: function(params) {
@@ -2025,6 +2049,117 @@ const tool_functions = {
 		}
 	},
 
+
+	draw_circle: {
+		center: null,
+		radius: null,
+		onclick: function(event) {
+			debug(`draw_circle click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
+
+			// Start state means first click
+			if (current_state == 'start') {
+				current_state = 'drawing';
+				// Mark origin of the circle
+				origin_x = px;
+				origin_y = py;
+
+				// Add the center
+				tool_functions.draw_circle.center = [px, py];
+			}
+
+			// Drawing state means second click. Time to draw the rect.
+			else if (current_state == 'drawing') {
+				// Find the radius based from origin to this second point.
+				let radius = get_distance(origin_x, origin_y, px, py);
+
+				// We're not going to add all four points, but just the origin and the extent.
+				tool_functions.draw_circle.radius = radius;
+
+				// Reset the cursor layer to get rid of the guide line
+				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+				clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+				draw_cursor(0, px, py);
+
+				// Add this action to our history stack.
+				history.add({
+					action: 'draw_circle',
+					params: {
+						color: virtual_canvas.get_color(),
+						center: tool_functions.draw_circle.center,
+						radius: tool_functions.draw_circle.radius
+					}
+				});
+
+				// Reset all variables
+				origin_x = null;
+				origin_y = null;
+				tool_functions.draw_circle.center = null;
+				tool_functions.draw_circle.radius = null;
+				current_state = 'start';
+
+				// Redraw everything
+				renderer.render();
+			}
+		},
+		// ondblclick: function(event) {
+		// }, 
+		// When we see a right click, we need to cancel the rectangle.
+		onrightclick: function(event) {
+			debug(`draw_circle right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
+
+			// Reset the cursor layer to get rid of the guide line
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+			draw_cursor(0, px, py);
+
+			if (current_state == 'drawing') {
+
+				// Reset all variables
+				origin_x = null;
+				origin_y = null;
+				tool_functions.draw_circle.center = null;
+				tool_functions.draw_circle.radius = null;
+			}
+			current_state = 'start';
+		},
+		mousemove: function(event) {
+			if (debug_mousemove == true) {
+				debug(`draw_circle mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+
+			if (current_state == 'drawing') {
+				// Draw the edges of the temporary rectangle
+				set_color(virtual_canvas.get_color(), liveContext, 1);
+
+				// Find the radius based from origin to this second point.
+				let radius = get_distance(origin_x, origin_y, px, py);
+
+				draw_circle(liveContext, origin_x, origin_y, radius);
+			}
+			draw_cursor(0, px, py);
+			update_loupe(px, py);
+			update_status(px, py);
+		}
+	},
+
+
 	draw_polygon: {
 		points: [],
 		onclick: function(event) {
@@ -2387,6 +2522,12 @@ function set_color(color_index, ctx, opacity=1) {
 
 
 
+function get_distance(x1, y1, x2, y2) {
+	let dx = x2 - x1;
+	let dy = y2 - y1;
+	return Math.round(Math.sqrt(dx * dx + dy * dy));
+}
+
 
 // This is a wrapper for set_pixel that checks against the pattern 
 // to see if this specific pixel should be drawn or left hollow.
@@ -2500,9 +2641,17 @@ function bresenhamLine(ctx, x0, y0, x1, y1) {
 }
 
 
+// Temporary wrappers for circle functions until I can write proper ones.
+function draw_circle(ctx, xm, ym, r) {
+	bresenhamCircle(ctx, xm, ym, r);	
+}
+
+function fill_circle(ctx, xm, ym, r) {
+	bresenhamCircle(ctx, xm, ym, r);	
+}
 
 
-function bresenhamCircle(ctx, xm,  ym,  r) {
+function bresenhamCircle(ctx, xm, ym, r) {
 	var x = -r, y = 0, err = 2-2*r;
 	while (x<0) {
 		set_pixel(ctx, xm-x, ym+y); /*   I. Quadrant */
