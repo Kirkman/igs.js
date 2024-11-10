@@ -1010,6 +1010,7 @@ const tools = [
 	{ 'name': 'Draw filled rectangle', 'function': 'draw_rect' },
 	{ 'name': 'Draw filled polygon', 'function': 'draw_polygon' },
 	{ 'name': 'Draw circle', 'function': 'draw_circle' },
+	{ 'name': 'Grab / blit', 'function': 'blit' },
 	{ 'name': 'Write text', 'function': 'write_text' },
 ];
 
@@ -1616,6 +1617,22 @@ const renderer = {
 			}
 		}
 	},
+	blit: function(params) {
+		this.update_tool('blit');
+
+		// Fill_rect wants all four corners, but history saves only upper left and lower right.
+		const source_corners = [
+			params.source_points[0], 
+			[params.source_points[1][0], params.source_points[0][1]], 
+			params.source_points[1], 
+			[params.source_points[0][0], params.source_points[1][1]], 
+		];
+
+		blit_rect('virtual', source_corners, params.dest_points);
+
+	},
+
+
 	change_font: function(params) {
 		// Manually trigger a click on the pattern we're choosing so it will be selected in the interface
 		document.querySelector('.widget-fonts select').value = fonts.find(d => d.point == params.font).id;
@@ -2274,6 +2291,161 @@ const tool_functions = {
 			update_status(px, py);
 		}
 	},
+
+
+
+	blit: {
+		source_points: [],
+		dest_points: [],
+		source_width: null,
+		source_height: null,
+		onclick: function(event) {
+			debug(`blit click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
+
+			// Start state means first click
+			if (current_state == 'start') {
+				current_state = 'drawing';
+				// Mark origin of the rect
+				origin_x = px;
+				origin_y = py;
+
+				// Add origin. (We're not going to add all four points of the rect, but just the origin and extent.)
+				tool_functions.blit.source_points.push([px, py]);
+			}
+
+			// Drawing state means second click. Time to draw the rect.
+			else if (current_state == 'drawing') {
+				current_state = 'moving';
+
+				// Add extent. (We're not going to add all four source_points of the rect, but just the origin and extent.)
+				tool_functions.blit.source_points.push([px, py]);
+
+				tool_functions.blit.source_width = px - origin_x;
+				tool_functions.blit.source_height = py - origin_y;
+
+				// Reset the cursor layer to get rid of the guide lines
+				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+				clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+				draw_cursor(0, px, py);
+			}
+
+			// Moving state means third click. Time to blit the original rect.
+			else if (current_state == 'moving') {
+
+				// Add destination. Only upper left corner.
+				tool_functions.blit.dest_points.push([px, py]);
+
+				// Reset the cursor layer to get rid of the guide lines
+				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+				clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+				draw_cursor(0, px, py);
+
+
+				// Add this action to our history stack.
+				history.add({
+					action: 'blit',
+					params: {
+						'type': '0', // Screen to screen
+						'mode': '3', // Replace mode (dest=S)
+						'source_points': tool_functions.blit.source_points,
+						'dest_points': tool_functions.blit.dest_points
+					}
+				});
+
+				// Reset all variables
+				origin_x = null;
+				origin_y = null;
+				tool_functions.blit.source_points = [];
+				tool_functions.blit.dest_points = [];
+				tool_functions.blit.source_width = null;
+				tool_functions.blit.source_height = null;
+
+				current_state = 'start';
+
+				// Redraw everything
+				renderer.render();
+			}
+		},
+		// ondblclick: function(event) {
+		// }, 
+		// When we see a right click, we need to cancel the rectangle.
+		onrightclick: function(event) {
+			debug(`blit right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+			[px, py] = checkBounds(context, px, py);
+
+			// Reset the cursor layer to get rid of the guide line
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+			draw_cursor(0, px, py);
+
+			if (current_state == 'drawing' || current_state == 'pasting') {
+				// Reset all variables
+				origin_x = null;
+				origin_y = null;
+				tool_functions.blit.source_points = [];
+				tool_functions.blit.dest_points = [];
+				tool_functions.blit.source_width = null;
+				tool_functions.blit.source_height = null;
+			}
+			current_state = 'start';
+		},
+		mousemove: function(event) {
+			if (debug_mousemove == true) {
+				debug(`blit mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
+
+			let sx = event.layerX;
+			let sy = event.layerY;
+			let [px, py] = translate_to_screen(sx, sy);
+
+			clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
+			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
+
+			if (current_state == 'drawing') {
+				// Draw the edges of the temporary rectangle
+				set_color(virtual_canvas.get_color(), liveContext, 1);
+				bresenhamLine(liveContext, origin_x, origin_y, px, origin_y);
+				bresenhamLine(liveContext, px, origin_y, px, py);
+				bresenhamLine(liveContext, px, py, origin_x, py);
+				bresenhamLine(liveContext, origin_x, py, origin_x, origin_y);
+			}
+
+			if (current_state == 'moving') {
+				// Draw the edges of the temporary rectangle
+				set_color(virtual_canvas.get_color(), liveContext, 1);
+
+				const dest_x1 = px + tool_functions.blit.source_width;
+				const dest_y1 = py + tool_functions.blit.source_height;
+
+				// Fill_rect wants all four corners, but history saves only upper left and lower right.
+				const corners = [
+					[px, py],
+					[px, dest_y1],
+					[dest_x1, py],
+					[dest_x1, dest_y1]
+				];
+
+				// Draw the rectangle with fill
+				fill_rect(liveContext, corners);
+			}
+
+			draw_cursor(0, px, py);
+			update_loupe(px, py);
+			update_status(px, py);
+		}
+	},
+
+
+
 	write_text: {
 		insertion_point: 0,
 		points: [],
@@ -2805,6 +2977,31 @@ function write_text_vdi(ctx, text, points) {
 					}
 				}
 			}
+		}
+	}
+}
+
+function blit_rect(ctx, corners, dest) {
+	// console.log(corners);
+	// console.log(dest);
+
+	const source_x0 = Math.min(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
+	const source_x1 = Math.max(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
+
+	const source_y0 = Math.min(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
+	const source_y1 = Math.max(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
+
+	const offset_x = dest[0][0] - source_x0;
+	const offset_y = dest[0][1] - source_y0;
+
+	// console.log(source_x0, source_x1);
+	// console.log(source_y0, source_y1);
+	// console.log(offset_x, offset_y);
+
+	for (let y=source_y0; y<source_y1+1; y++) {
+		for (let x=source_x0; x<source_x1+1; x++) {
+			source_idx = virtual_canvas.get_pixel(x, y);
+			virtual_canvas.set_pixel(x+offset_x, y+offset_y, source_idx);
 		}
 	}
 }
