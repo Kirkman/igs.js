@@ -225,10 +225,47 @@
 				<div class="input-set">
 					<label for="picker-y">Y (vertical)</label>
 					<input type="number" id="picker-y" name="picker-y" min="-199" max="199" value="0">
-					<label for="picker-x">-199 to +199</label>
+					<label for="picker-y">-199 to +199</label>
 				</div>
 			</div>
 			<button type="button" class="apply-move ui-button">Move</button>
+			<div class="cancel"></div>
+		</div>
+
+
+		<div class="widget widget-blit-picker modal hidden cancelable">
+			<h2>Grab / blit</h2>
+			<p>This function will let you select part of the screen and move a copy of it to another part. Choose a logic operation to change the way the image is pasted. Modes 3 (Replace), 4 (Erase), 6 (XOR), and 7 (Transparent) are the most useful.</p>
+			<div class="input-wrapper">
+				<div class="input-set">
+					<label for="picker-type">Type</label>
+					<select id="picker-type" name="picker-type" disabled>
+						<option value="0" selected>Screen-to-screen</option>
+					</select>
+				</div>
+				<div class="input-set">
+					<label for="picker-mode">Logic operation</label>
+					<select id="picker-mode" name="picker-mode">
+						<option value="0">0 - 0 - (Clear destination block)</option>
+						<option value="1">1 - S AND D</option>
+						<option value="2">2 - S AND (NOT D)</option>
+						<option value="3" selected>3 - S - (Replace mode)</option>
+						<option value="4">4 - (NOT S) AND D - (Erase mode)</option>
+						<option value="5">5 - D - (Destination unchanged)</option>
+						<option value="6">6 - S XOR D - (XOR mode)</option>
+						<option value="7">7 - S OR D - (Transparent mode)</option>
+						<option value="8">8 - NOT (S OR D)</option>
+						<option value="9">9 - NOT (S XOR D)</option>
+						<option value="10">10 - NOT D</option>
+						<option value="11">11 - S OR (NOT D)</option>
+						<option value="12">12 - NOT S</option>
+						<option value="13">13 - (NOT S) OR D - (Reverse Transparent mode)</option>
+						<option value="14">14 - NOT (S AND D)</option>
+						<option value="15">15 - 1 - (Fill destination block)</option>
+					</select>
+				</div>
+			</div>
+			<button type="button" class="start-blit ui-button" disabled>Blit!</button>
 			<div class="cancel"></div>
 		</div>
 
