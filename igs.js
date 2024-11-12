@@ -18,7 +18,7 @@ let buffer_size = parseInt(root_style.getPropertyValue('--buffer-size'));
 let buffer_horiz;
 let buffer_vert;
 
-let debug_flag = true;
+let debug_flag = false;
 let debug_mousemove = false;
 
 let mouse_is_dragging = false;
@@ -478,6 +478,21 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	});
 
 
+	// Click handler for Move dialog cancel button
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	const move_dialog_cancel = document.querySelector('.widget-move-art .cancel');
+	if (!move_dialog_cancel.hasAttribute('hasClickHandler')) {
+		move_dialog_cancel.addEventListener('click', function(event) {
+			// Close the modal
+			document.querySelector('.modal-wrapper').classList.add('hidden');
+			document.querySelector('.widget-move-art').classList.add('hidden');
+		});
+		move_dialog_cancel.setAttribute('hasClickHandler', 'true');
+	}
+
+
+
 	// Populate the color picker with all possible Atari colors.	
 	const color_picker_inputs = document.querySelector('.widget-color-picker .palette-squares');
 	// First, empty any existing buttons
@@ -506,7 +521,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		}
 	});
 
-	// Click handler for cancel button
+	// Click handler for Color Picker cancel button
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
 	const color_choose_cancel = document.querySelector('.widget-color-picker .cancel');
@@ -1688,6 +1703,7 @@ const renderer = {
 const tool_functions = {
 	draw_point: {
 		points: [],
+		init: function() {},
 		onclick: function(event) {
 			debug(`draw_point click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -1814,7 +1830,9 @@ const tool_functions = {
 		},
 
 	},
+
 	draw_line: {
+		init: function() {},
 		onclick: function(event) {
 			debug(`draw_line click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -1903,8 +1921,10 @@ const tool_functions = {
 			update_status(px, py);
 		}
 	},
+
 	draw_polyline: {
 		points: [],
+		init: function() {},
 		onclick: function(event) {
 			debug(`draw_polyline click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -2001,8 +2021,10 @@ const tool_functions = {
 			update_status(px, py);
 		}
 	},
+
 	draw_rect: {
 		points: [],
+		init: function() {},
 		onclick: function(event) {
 			debug(`draw_rect click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -2102,10 +2124,10 @@ const tool_functions = {
 		}
 	},
 
-
 	draw_circle: {
 		center: null,
 		radius: null,
+		init: function() {},
 		onclick: function(event) {
 			debug(`draw_circle click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -2212,9 +2234,9 @@ const tool_functions = {
 		}
 	},
 
-
 	draw_polygon: {
 		points: [],
+		init: function() {},
 		onclick: function(event) {
 			debug(`draw_polygon click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -2328,8 +2350,6 @@ const tool_functions = {
 		}
 	},
 
-
-
 	blit: {
 		source_points: [],
 		dest_points: [],
@@ -2337,7 +2357,43 @@ const tool_functions = {
 		source_height: null,
 		type: 0, // Screen to screen
 		mode: 3, // Replace mode (dest=S)
+		init: function() {
+			console.log('BLIT INIT!');
+			// Display the modal
+			document.querySelector('.modal-wrapper').classList.remove('hidden');
+			document.querySelector('.widget-blit-picker').classList.remove('hidden');
+
+			// Click handler for use-this-color button
+			// These outer .hasAttribute() checks ensure we don't re-bind this event
+			// when we render or replay the history (which can cascade).
+			const start_blit_button = document.querySelector('.start-blit');
+
+			// Enable the start button
+			start_blit_button.disabled = false;
+
+			if (!start_blit_button.hasAttribute('hasClickHandler')) {
+				start_blit_button.addEventListener('click', function(event) {
+
+					// Set the mode and type
+					const selected_mode = parseInt(document.querySelector('#picker-mode').value);
+					const selected_type = parseInt(document.querySelector('#picker-type').value);
+
+					console.log(selected_type, selected_mode);
+
+
+					tool_functions.blit.type = selected_type;
+					tool_functions.blit.mode = selected_mode;
+
+					// Close the modal
+					document.querySelector('.modal-wrapper').classList.add('hidden');
+					document.querySelector('.widget-blit-picker').classList.add('hidden');
+
+				});
+				start_blit_button.setAttribute('hasClickHandler', 'true');
+			}
+		},
 		onclick: function(event) {
+			console.log(`blit click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 			debug(`blit click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let sx = event.layerX;
@@ -2492,13 +2548,12 @@ const tool_functions = {
 		}
 	},
 
-
-
 	write_text: {
 		insertion_point: 0,
 		points: [],
 		text: '',
 		last_mouse_pos: [],
+		init: function() {},
 		finish_text: function(pos) {
 			if (pos == undefined) {
 				pos = tool_functions.write_text.last_mouse_pos;
@@ -2676,6 +2731,7 @@ document.querySelector('.widget-tools select').addEventListener('change', functi
 
 	if (current_state !== 'rendering') {
 		current_state = 'start';
+		tool_functions[current_tool].init();
 	}
 
 	if (current_tool !== null) {
