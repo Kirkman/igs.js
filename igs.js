@@ -2380,7 +2380,6 @@ const tool_functions = {
 
 					console.log(selected_type, selected_mode);
 
-
 					tool_functions.blit.type = selected_type;
 					tool_functions.blit.mode = selected_mode;
 
@@ -2430,6 +2429,11 @@ const tool_functions = {
 
 			// Moving state means third click. Time to blit the original rect.
 			else if (current_state == 'moving') {
+				// Check if shift key is being held.
+				// If so, restrict movement to multiples of 45 degrees.
+				if (event.shiftKey) {
+					[px, py] = convert_to_45_deg([origin_x, origin_y], [px, py]);
+				}
 
 				// Add destination. Only upper left corner.
 				tool_functions.blit.dest_points.push([px, py]);
@@ -2530,6 +2534,12 @@ const tool_functions = {
 			}
 
 			if (current_state == 'moving') {
+				// Check if shift key is being held.
+				// If so, restrict movement to multiples of 45 degrees.
+				if (event.shiftKey) {
+					[px, py] = convert_to_45_deg([origin_x, origin_y], [px, py]);
+				}
+
 				// blit_rect wants all four corners, but history saves only upper left and lower right.
 				const source_corners = [
 					tool_functions.blit.source_points[0], 
