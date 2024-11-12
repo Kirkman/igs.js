@@ -147,8 +147,28 @@ const loupeContext = loupeCanvas.getContext('2d');
 
 
 
+// Throttling Function
+function throttleFunction(func, delay) {
 
+	// Previously called time of the function
+	let prev = 0;
+	return (...args) => {
+		// Current called time of the function
+		let now = new Date().getTime();
 
+		// If difference is greater
+		// than delay call
+		// the function again.
+		if (now - prev > delay) {
+			prev = now;
+
+			// "..." is the spread operator here 
+			// returning the function with the 
+			// array of arguments
+			return func(...args);
+		}
+	}
+}
 
 
 function debug(s) {
@@ -644,11 +664,13 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		display.setAttribute('hasRightClickHandler', 'true');
 	}
 
+
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
 	if (!display.hasAttribute('hasMouseMoveHandler')) {
 		// CANVAS MOUSEMOVE HANDLER
-		display.addEventListener('mousemove', function(event) {
+		// Using a throttle function to keep the app snappier, especially with the blitting.
+		display.addEventListener('mousemove', throttleFunction(() => {
 			if (current_tool !== 'rendering') {
 				const [px, py] = translate_to_screen(event.layerX, event.layerY);
 
@@ -671,7 +693,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 				}
 			}
 			return false;
-		}, false);
+		}, 25), false);
 		display.setAttribute('hasMouseMoveHandler', 'true');
 	}
 
@@ -1380,6 +1402,20 @@ const history = {
 					// !!! Need to add logic for handling IGS' "Hollow" command
 					// which controls whether circle is drawn filled or as an outline. !!!
 					cmd_str += `G#O>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.radius}:\r\n`;
+					break;
+				case 'blit':
+					// Right now I only support screen-to-screen blitting (type=0).
+					cmd_str += `G#G>${cmd.params.type},${cmd.params.mode}`;
+					for (let p=0; p<cmd.params.source_points.length; p++) {
+						cmd_str += `,${cmd.params.source_points[p][0]},${cmd.params.source_points[p][1]}`;
+					}
+					for (let p=0; p<cmd.params.dest_points.length; p++) {
+						cmd_str += `,${cmd.params.dest_points[p][0]},${cmd.params.dest_points[p][1]}`;
+						// If we're at the last command, then use the terminator and line breaks
+						if (p == cmd.params.dest_points.length - 1) {
+							cmd_str += `:\r\n`;
+						}
+					}
 					break;
 			}
 		}
@@ -2420,11 +2456,21 @@ const tool_functions = {
 
 			if (current_state == 'drawing') {
 				// Draw the edges of the temporary rectangle
-				set_color(virtual_canvas.get_color(), liveContext, 1);
-				bresenhamLine(liveContext, origin_x, origin_y, px, origin_y);
-				bresenhamLine(liveContext, px, origin_y, px, py);
-				bresenhamLine(liveContext, px, py, origin_x, py);
-				bresenhamLine(liveContext, origin_x, py, origin_x, origin_y);
+
+				// In this case (blitting), the user has not selected a fill or stroke color,
+				// and the canvas palette might be set to the background color. 
+				// So we'll use something different, then set it back to be safe.
+				const orig_color = virtual_canvas.get_color();
+				const temp_color = 15 - orig_color;
+
+				set_color(temp_color, liveContext, 1);
+				// Set XOR to true when drawing these lines. Ensures they will 
+				// always be visible over the area we are tracing.
+				bresenhamLine(liveContext, origin_x, origin_y, px, origin_y, true);
+				bresenhamLine(liveContext, px, origin_y, px, py, true);
+				bresenhamLine(liveContext, px, py, origin_x, py, true);
+				bresenhamLine(liveContext, origin_x, py, origin_x, origin_y, true);
+				set_color(orig_color, liveContext, 1);
 			}
 
 			if (current_state == 'moving') {
@@ -2752,14 +2798,11 @@ function fill_pixel(ctx, x, y) {
 
 
 function set_pixel(ctx, x, y, idx=null) {
-	if (!idx) { idx = virtual_canvas.get_color(); }
+	if (idx == null) { idx = virtual_canvas.get_color(); }
 	if (ctx == 'virtual') {
 		virtual_canvas.set_pixel(x, y, idx);
 	}
 	else {
-		// if (idx != null) {
-		// 	set_color(idx, ctx);
-		// }
 		ctx.fillRect(x, y, 1, 1);
 	}
 }
@@ -2807,7 +2850,7 @@ function getBresenhamLinePixels(ctx, x0, y0, x1, y1) {
 }
 
 
-function bresenhamLine(ctx, x0, y0, x1, y1) {
+function bresenhamLine(ctx, x0, y0, x1, y1, xor=false) {
 	var dx = Math.abs(x1-x0);
 	var dy = Math.abs(y1-y0);
 	var sx = (x0 < x1) ? 1 : -1;
@@ -2815,7 +2858,18 @@ function bresenhamLine(ctx, x0, y0, x1, y1) {
 	var err = dx-dy;
 
 	while(true) {
-		set_pixel(ctx, x0, y0);
+		let idx = null;
+
+		if (xor == true) {
+			// The `& 0xF` part is a mask to keep only the lowest 4 bits of the result. 
+			// This effectively limits it to an unsigned 4-bit integer, which is what
+			// we need to get the same result as on the Atari ST. 
+			idx = (~ virtual_canvas.get_pixel(x0, y0)) & 0xF;
+			set_color(idx, ctx);
+		}
+
+
+		set_pixel(ctx, x0, y0, idx);
 
 		if ((x0==x1) && (y0==y1)) break;
 		var e2 = 2*err;
@@ -2993,6 +3047,46 @@ function write_text_vdi(ctx, text, points) {
 	}
 }
 
+function color_idx_to_pixel_val(c) {
+	if (c == 0) { return 0; }
+	else if (c == 1) { return 15; }
+	else if (c == 2) { return 1; }
+	else if (c == 3) { return 2; }
+	else if (c == 4) { return 4; }
+	else if (c == 5) { return 6; }
+	else if (c == 6) { return 3; }
+	else if (c == 7) { return 5; }
+	else if (c == 8) { return 7; }
+	else if (c == 9) { return 8; }
+	else if (c == 10) { return 9; }
+	else if (c == 11) { return 10; }
+	else if (c == 12) { return 12; }
+	else if (c == 13) { return 14; }
+	else if (c == 14) { return 11; }
+	else if (c == 15 ) { return 13; }
+}
+
+function pixel_val_to_color_idx(c) {
+	if (c == 0) { return 0; }
+	else if (c == 15) { return 1; }
+	else if (c == 1) { return 2; }
+	else if (c == 2) { return 3; }
+	else if (c == 4) { return 4; }
+	else if (c == 6) { return 5; }
+	else if (c == 3) { return 6; }
+	else if (c == 5) { return 7; }
+	else if (c == 7) { return 8; }
+	else if (c == 8) { return 9; }
+	else if (c == 9) { return 10; }
+	else if (c == 10) { return 11; }
+	else if (c == 12) { return 12; }
+	else if (c == 14) { return 13; }
+	else if (c == 11) { return 14; }
+	else if (c ==  13) { return 15; }
+}
+
+
+
 function blit_rect(ctx, corners, dest, mode) {
 	let cw, ch;
 	if (ctx == 'virtual') {
@@ -3024,55 +3118,71 @@ function blit_rect(ctx, corners, dest, mode) {
 				continue;
 			}
 
-			const S = virtual_canvas.get_pixel(x, y);
-			const D = virtual_canvas.get_pixel(dx, dy);
+			// Get the source and destination pixels.
 
-			let new_idx = S;
+			// NOTE: I storing these in virtual_canvas as color indices.
+			// But to proprely perform logical operations for the blit, 
+			// I first have to convert the color indices into pixel values. 
+			// Then, after doing the math, I will convert them back.
+			//
+			// Reference tables here:
+			// https://www.atarimagazines.com/v4n12/ControlGEM.php
+			// https://bitsavers.computerhistory.org/pdf/atari/ST/Atari_ST_GEM_Programming_1986/GEM_0174.pdf
+
+			const S = color_idx_to_pixel_val( virtual_canvas.get_pixel(x, y) );
+			const D = color_idx_to_pixel_val( virtual_canvas.get_pixel(dx, dy) );
+
+			let new_idx = null;
+
+			// The `& 0xF` part is a mask to keep only the lowest 4 bits of the result. 
+			// This effectively limits it to an unsigned 4-bit integer, which is what
+			// we need to get the same result as on the Atari ST. 
+			// (JS performs bitwise operations on signed 32-bit integers by default)
 
 			if (mode == 0) {
 				new_idx = 0;
 			}
 			else if (mode == 1) {
-				new_idx = (S & D);
+				new_idx = (S & D) & 0xF;
 			}
 			else if (mode == 2) {
-				new_idx = (S & (~D));
+				new_idx = (S & (~D)) & 0xF;
 			}
 			else if (mode == 3) {
-				new_idx = (S);
+				new_idx = (S) & 0xF;
 			}
 			else if (mode == 4) {
-				new_idx = ((~S) & D);
+				new_idx = ((~S) & D) & 0xF;
 			}
 			else if (mode == 5) {
-				new_idx = (D);
+				new_idx = (D) & 0xF;
 			}
 			else if (mode == 6) {
-				new_idx = (S ^ D);
+				new_idx = (S ^ D) & 0xF;
 			}
 			else if (mode == 7) {
-				new_idx = (S | D);
+				new_idx = (S | D) & 0xF;
 			}
 			else if (mode == 8) {
-				new_idx = (~(S | D));
+				new_idx = (~(S | D)) & 0xF;
 			}
 			else if (mode == 9) {
-				new_idx = (~(S ^ D));
+				new_idx = (~(S ^ D)) & 0xF;
 			}
 			else if (mode == 10) {
-				new_idx = (~ D);
+				new_idx = (~ D) & 0xF;
 			}
 			else if (mode == 11) {
-				new_idx = (S | (~D));
+				new_idx = (S | (~D)) & 0xF;
 			}
 			else if (mode == 12) {
-				new_idx = (~S);
+				new_idx = (~S) & 0xF;
 			}
 			else if (mode == 13) {
-				new_idx = ((~S) | D);
+				new_idx = ((~S) | D) & 0xF;
 			}
 			else if (mode == 14) {
-				new_idx = (~(S & D));
+				new_idx = (~(S & D)) & 0xF;
 			}
 			else if (mode == 15) {
 				new_idx = 1;
@@ -3081,7 +3191,12 @@ function blit_rect(ctx, corners, dest, mode) {
 				throw new Error('COULD NOT PARSE MODE.')
 			}
 
-			// To make the blit rectangle show up on mousemove, I have to explicitly set the color here.
+			// Now that we've done the math, we need to convert from
+			// pixel values back to color indices.
+			new_idx = pixel_val_to_color_idx(new_idx);
+
+			// To make the blit rectangle show up on mousemove, 
+			// I have to explicitly set the color here.
 			set_color(new_idx, ctx);
 
 			set_pixel(ctx, dx, dy, new_idx);
