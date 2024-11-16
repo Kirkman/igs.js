@@ -18,7 +18,7 @@ let buffer_size = parseInt(root_style.getPropertyValue('--buffer-size'));
 let buffer_horiz;
 let buffer_vert;
 
-let debug_flag = true;
+let debug_flag = false;
 let debug_mousemove = false;
 
 let mouse_is_dragging = false;
@@ -3145,6 +3145,7 @@ function color_idx_to_pixel_val(c) {
 		else if (c == 2) { return 1; }
 		else if (c == 3) { return 2; }
 	}
+	debug(`COULD NOT CONVERT color index ${c} to a pixel value`);
 }
 
 function pixel_val_to_color_idx(c) {
@@ -3174,7 +3175,7 @@ function pixel_val_to_color_idx(c) {
 		else if (c == 1) { return 2; }
 		else if (c == 2) { return 3; }
 	}
-
+	debug(`COULD NOT CONVERT pixel value ${c} to a color index`);
 }
 
 
@@ -3234,58 +3235,62 @@ function blit_rect(ctx, corners, dest, mode) {
 
 			let new_idx = null;
 
-			// The `& 0xF` part is a mask to keep only the lowest 4 bits of the result. 
-			// This effectively limits it to an unsigned 4-bit integer, which is what
-			// we need to get the same result as on the Atari ST. 
+			// We need to create a mask to keep only the lowest 2 or 4 bits of the result.
+			// This will effectively limit it an unsigned 2-bit or 4-bit integer, which
+			// is what we need to get the same result as on the Atari ST.
+			// Whether we use a mask for 2 bits or 4 bits depends on screen resolution.
 			// (JS performs bitwise operations on signed 32-bit integers by default)
 
-			// In this case, it's okay to hard-code the bitmask to 0xF since there are
-			// _always_ 16 possible operations, so it will always be a 4-bit integer.
+			// Low resolution, 4-bit mask
+			let bitmask = 0xF;
+
+			// Medium resolution, 2-bit mask
+			if (virtual_canvas.get_palette().length == 4) { bitmask = 0x3; }
 
 			if (mode == 0) {
 				new_idx = 0;
 			}
 			else if (mode == 1) {
-				new_idx = (S & D) & 0xF;
+				new_idx = (S & D) & bitmask;
 			}
 			else if (mode == 2) {
-				new_idx = (S & (~D)) & 0xF;
+				new_idx = (S & (~D)) & bitmask;
 			}
 			else if (mode == 3) {
-				new_idx = (S) & 0xF;
+				new_idx = (S) & bitmask;
 			}
 			else if (mode == 4) {
-				new_idx = ((~S) & D) & 0xF;
+				new_idx = ((~S) & D) & bitmask;
 			}
 			else if (mode == 5) {
-				new_idx = (D) & 0xF;
+				new_idx = (D) & bitmask;
 			}
 			else if (mode == 6) {
-				new_idx = (S ^ D) & 0xF;
+				new_idx = (S ^ D) & bitmask;
 			}
 			else if (mode == 7) {
-				new_idx = (S | D) & 0xF;
+				new_idx = (S | D) & bitmask;
 			}
 			else if (mode == 8) {
-				new_idx = (~(S | D)) & 0xF;
+				new_idx = (~(S | D)) & bitmask;
 			}
 			else if (mode == 9) {
-				new_idx = (~(S ^ D)) & 0xF;
+				new_idx = (~(S ^ D)) & bitmask;
 			}
 			else if (mode == 10) {
-				new_idx = (~ D) & 0xF;
+				new_idx = (~ D) & bitmask;
 			}
 			else if (mode == 11) {
-				new_idx = (S | (~D)) & 0xF;
+				new_idx = (S | (~D)) & bitmask;
 			}
 			else if (mode == 12) {
-				new_idx = (~S) & 0xF;
+				new_idx = (~S) & bitmask;
 			}
 			else if (mode == 13) {
-				new_idx = ((~S) | D) & 0xF;
+				new_idx = ((~S) | D) & bitmask;
 			}
 			else if (mode == 14) {
-				new_idx = (~(S & D)) & 0xF;
+				new_idx = (~(S & D)) & bitmask;
 			}
 			else if (mode == 15) {
 				new_idx = 1;
