@@ -18,7 +18,7 @@ let buffer_size = parseInt(root_style.getPropertyValue('--buffer-size'));
 let buffer_horiz;
 let buffer_vert;
 
-let debug_flag = false;
+let debug_flag = true;
 let debug_mousemove = false;
 
 let mouse_is_dragging = false;
@@ -2358,7 +2358,6 @@ const tool_functions = {
 		type: 0, // Screen to screen
 		mode: 3, // Replace mode (dest=S)
 		init: function() {
-			console.log('BLIT INIT!');
 			// Display the modal
 			document.querySelector('.modal-wrapper').classList.remove('hidden');
 			document.querySelector('.widget-blit-picker').classList.remove('hidden');
@@ -2378,8 +2377,6 @@ const tool_functions = {
 					const selected_mode = parseInt(document.querySelector('#picker-mode').value);
 					const selected_type = parseInt(document.querySelector('#picker-type').value);
 
-					console.log(selected_type, selected_mode);
-
 					tool_functions.blit.type = selected_type;
 					tool_functions.blit.mode = selected_mode;
 
@@ -2392,7 +2389,6 @@ const tool_functions = {
 			}
 		},
 		onclick: function(event) {
-			console.log(`blit click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 			debug(`blit click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let sx = event.layerX;
@@ -2521,7 +2517,7 @@ const tool_functions = {
 				// and the canvas palette might be set to the background color. 
 				// So we'll use something different, then set it back to be safe.
 				const orig_color = virtual_canvas.get_color();
-				const temp_color = 15 - orig_color;
+				const temp_color = (virtual_canvas.get_palette().length - 1) - orig_color;
 
 				set_color(temp_color, liveContext, 1);
 				// Set XOR to true when drawing these lines. Ensures they will 
@@ -2927,10 +2923,19 @@ function bresenhamLine(ctx, x0, y0, x1, y1, xor=false) {
 		let idx = null;
 
 		if (xor == true) {
-			// The `& 0xF` part is a mask to keep only the lowest 4 bits of the result. 
-			// This effectively limits it to an unsigned 4-bit integer, which is what
-			// we need to get the same result as on the Atari ST. 
-			idx = (~ virtual_canvas.get_pixel(x0, y0)) & 0xF;
+			// We need to create a mask to keep only the lowest 2 or 4 bits of the result.
+			// This will effectively limit it an unsigned 2-bit or 4-bit integer, which
+			// is what we need to get the same result as on the Atari ST.
+			// Whether we use a mask for 2 bits or 4 bits depends on screen resolution.
+
+			// Low resolution, 4-bit mask
+			let bitmask = 0xF;
+
+			// Medium resolution, 2-bit mask
+			if (virtual_canvas.get_palette().length == 4) { bitmask = 0x3; }
+
+			// Apply the bit mask, and get correct index.
+			idx = (~ virtual_canvas.get_pixel(x0, y0)) & bitmask;
 			set_color(idx, ctx);
 		}
 
@@ -3114,41 +3119,62 @@ function write_text_vdi(ctx, text, points) {
 }
 
 function color_idx_to_pixel_val(c) {
-	if (c == 0) { return 0; }
-	else if (c == 1) { return 15; }
-	else if (c == 2) { return 1; }
-	else if (c == 3) { return 2; }
-	else if (c == 4) { return 4; }
-	else if (c == 5) { return 6; }
-	else if (c == 6) { return 3; }
-	else if (c == 7) { return 5; }
-	else if (c == 8) { return 7; }
-	else if (c == 9) { return 8; }
-	else if (c == 10) { return 9; }
-	else if (c == 11) { return 10; }
-	else if (c == 12) { return 12; }
-	else if (c == 13) { return 14; }
-	else if (c == 14) { return 11; }
-	else if (c == 15 ) { return 13; }
+	if (virtual_canvas.get_palette().length == 16) {
+		if (c == 0) { return 0; }
+		else if (c == 1) { return 15; }
+		else if (c == 2) { return 1; }
+		else if (c == 3) { return 2; }
+		else if (c == 4) { return 4; }
+		else if (c == 5) { return 6; }
+		else if (c == 6) { return 3; }
+		else if (c == 7) { return 5; }
+		else if (c == 8) { return 7; }
+		else if (c == 9) { return 8; }
+		else if (c == 10) { return 9; }
+		else if (c == 11) { return 10; }
+		else if (c == 12) { return 12; }
+		else if (c == 13) { return 14; }
+		else if (c == 14) { return 11; }
+		else if (c == 15 ) { return 13; }		
+	}
+	// THIS IS A GUESS. THE REFERENCE BOOKS ONLY GIVE TABLES FOR 8-bit and 16-bit PALETTES.
+	// NEED TO DOUBLE-CHECK ON REAL ATARI.
+	else if (virtual_canvas.get_palette().length == 4) {
+		if (c == 0) { return 0; }
+		else if (c == 1) { return 3; }
+		else if (c == 2) { return 1; }
+		else if (c == 3) { return 2; }
+	}
 }
 
 function pixel_val_to_color_idx(c) {
-	if (c == 0) { return 0; }
-	else if (c == 15) { return 1; }
-	else if (c == 1) { return 2; }
-	else if (c == 2) { return 3; }
-	else if (c == 4) { return 4; }
-	else if (c == 6) { return 5; }
-	else if (c == 3) { return 6; }
-	else if (c == 5) { return 7; }
-	else if (c == 7) { return 8; }
-	else if (c == 8) { return 9; }
-	else if (c == 9) { return 10; }
-	else if (c == 10) { return 11; }
-	else if (c == 12) { return 12; }
-	else if (c == 14) { return 13; }
-	else if (c == 11) { return 14; }
-	else if (c ==  13) { return 15; }
+	if (virtual_canvas.get_palette().length == 16) {
+		if (c == 0) { return 0; }
+		else if (c == 15) { return 1; }
+		else if (c == 1) { return 2; }
+		else if (c == 2) { return 3; }
+		else if (c == 4) { return 4; }
+		else if (c == 6) { return 5; }
+		else if (c == 3) { return 6; }
+		else if (c == 5) { return 7; }
+		else if (c == 7) { return 8; }
+		else if (c == 8) { return 9; }
+		else if (c == 9) { return 10; }
+		else if (c == 10) { return 11; }
+		else if (c == 12) { return 12; }
+		else if (c == 14) { return 13; }
+		else if (c == 11) { return 14; }
+		else if (c ==  13) { return 15; }
+}
+	// THIS IS A GUESS. THE REFERENCE BOOKS ONLY GIVE TABLES FOR 8-bit AND 16-bit PALETTES.
+	// NEED TO DOUBLE-CHECK ON REAL ATARI.
+	else if (virtual_canvas.get_palette().length == 4) {
+		if (c == 0) { return 0; }
+		else if (c == 3) { return 1; }
+		else if (c == 1) { return 2; }
+		else if (c == 2) { return 3; }
+	}
+
 }
 
 
@@ -3174,6 +3200,14 @@ function blit_rect(ctx, corners, dest, mode) {
 	const offset_y = dest[0][1] - source_y0;
 
 
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// THIS IS OKAY FOR NOW, BUT NEED TO REWORK IT TO COPY THE SOURCE
+	// PIXELS TO ANOTHER ARRAY BEFORE WRITING TO DESTINATION
+	// TO AVOID MODIFYING THE SOURCE IN PLACE DURING THE BLIT.
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 	for (let y=source_y0; y<source_y1+1; y++) {
 		for (let x=source_x0; x<source_x1+1; x++) {
 			const dx = x+offset_x;
@@ -3187,7 +3221,7 @@ function blit_rect(ctx, corners, dest, mode) {
 			// Get the source and destination pixels.
 
 			// NOTE: I storing these in virtual_canvas as color indices.
-			// But to proprely perform logical operations for the blit, 
+			// But to properly perform logical operations for the blit, 
 			// I first have to convert the color indices into pixel values. 
 			// Then, after doing the math, I will convert them back.
 			//
@@ -3204,6 +3238,9 @@ function blit_rect(ctx, corners, dest, mode) {
 			// This effectively limits it to an unsigned 4-bit integer, which is what
 			// we need to get the same result as on the Atari ST. 
 			// (JS performs bitwise operations on signed 32-bit integers by default)
+
+			// In this case, it's okay to hard-code the bitmask to 0xF since there are
+			// _always_ 16 possible operations, so it will always be a 4-bit integer.
 
 			if (mode == 0) {
 				new_idx = 0;
