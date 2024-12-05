@@ -1323,9 +1323,12 @@ const history = {
 		let exp_text_effect = null;
 		let exp_text_size = null;
 		let exp_text_rotation = null;
+		let corner_x_coords = null;
+		let corner_y_coords = null;
 
 
 		for (cmd of full_history) {
+
 			switch (cmd.action) {
 				case 'set_resolution':
 					cmd_str += `G#R>${cmd.params.resolution},${cmd.params.sys_palette_flag}:\r\n`;
@@ -1402,8 +1405,20 @@ const history = {
 						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
 						exp_fill_color = cmd.params.color;
 					}
+					// SORT THE CORNER COORDINATES.
+					// We need to ensure that the upper left corner's coordinates come first and the lower right coords come second.
+					// This is a good practice because JoshDraw lets users extend the rectangle in any direction from the origin click,
+					// whereas the IGS manual specifies upper left should come first. This may not be an issue with the Box command,
+					// but I have seen it result in bugs with the Blit/Grab command.
+					corner_x_coords = [cmd.params.points[0][0], cmd.params.points[1][0]].sort((a, b) => a - b);
+					corner_y_coords = [cmd.params.points[0][1], cmd.params.points[1][1]].sort((a, b) => a - b);
+
 					// IGS' BOX command includes 5th parameter for rounded corners. Right now I don't support that.
-					cmd_str += `G#B>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${cmd.params.points[1][0]},${cmd.params.points[1][1]},0:\r\n`;
+					cmd_str += `G#B>${corner_x_coords[0]},${corner_y_coords[0]},${corner_x_coords[1]},${corner_y_coords[1]},0:\r\n`;
+
+					// Prevent these values from being repeated in future loop iterations.
+					corner_x_coords = null;
+					corner_y_coords = null;
 					break;
 				case 'draw_polygon':
 					if (exp_fill_color !== cmd.params.color) {
@@ -1431,10 +1446,21 @@ const history = {
 					break;
 				case 'blit':
 					// Right now I only support screen-to-screen blitting (type=0).
-					cmd_str += `G#G>${cmd.params.type},${cmd.params.mode}`;
-					for (let p=0; p<cmd.params.source_points.length; p++) {
-						cmd_str += `,${cmd.params.source_points[p][0]},${cmd.params.source_points[p][1]}`;
-					}
+
+					// SORT THE CORNER COORDINATES.
+					// We need to ensure that the upper left corner's coordinates come first and the lower right coords come second.
+					// This is a good practice because JoshDraw lets users extend the rectangle in any direction from the origin click,
+					// whereas the IGS manual specifies upper left should come first. This may not be an issue with the Box command,
+					// but I have seen it result in bugs with the Blit/Grab command.
+					corner_x_coords = [cmd.params.source_points[0][0], cmd.params.source_points[1][0]].sort((a, b) => a - b);
+					corner_y_coords = [cmd.params.source_points[0][1], cmd.params.source_points[1][1]].sort((a, b) => a - b);
+
+					cmd_str += `G#G>${cmd.params.type},${cmd.params.mode},${corner_x_coords[0]},${corner_y_coords[0]},${corner_x_coords[1]},${corner_y_coords[1]}`;
+
+					// Prevent these values from being repeated in future loop iterations.
+					corner_x_coords = null;
+					corner_y_coords = null;
+
 					for (let p=0; p<cmd.params.dest_points.length; p++) {
 						cmd_str += `,${cmd.params.dest_points[p][0]},${cmd.params.dest_points[p][1]}`;
 						// If we're at the last command, then use the terminator and line breaks
