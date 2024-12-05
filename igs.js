@@ -1326,7 +1326,6 @@ const history = {
 		let corner_x_coords = null;
 		let corner_y_coords = null;
 
-
 		for (cmd of full_history) {
 
 			switch (cmd.action) {
@@ -1486,19 +1485,22 @@ const history = {
 					break;
 				// SEE ABOVE ABOUT CHANGE_FONT AND "FONT" PARAM.
 				case 'write_text':
-					if (exp_text_color !== cmd.params.color) {
-						cmd_str += `G#C>3,${cmd.params.color}:\r\n`;
-						exp_text_color = cmd.params.color;
+					// Don't export this command if there's no text.
+					if (cmd.params.text && cmd.params.text.toString().trim() !== '') {
+						if (exp_text_color !== cmd.params.color) {
+							cmd_str += `G#C>3,${cmd.params.color}:\r\n`;
+							exp_text_color = cmd.params.color;
+						}
+
+						// Maximum allowed line length is 128 chars, but I'm not checking for that right now.
+
+						// Just to be safe, we need to make sure the string does NOT contain an @ symbol, 
+						// since IGS uses @ as the command terminator here. We probably should alert the 
+						// user to this fact, or maybe completely disallow the typing of "@".
+						const sanitized_text = cmd.params.text.replace('@', ' ');
+
+						cmd_str += `G#W>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${sanitized_text}@\r\n`;
 					}
-
-					// Maximum allowed line length is 128 chars, but I'm not checking for that right now.
-
-					// Just to be safe, we need to make sure the string does NOT contain an @ symbol, 
-					// since IGS uses @ as the command terminator here. We probably should alert the 
-					// user to this fact, or maybe completely disallow the typing of "@".
-					const sanitized_text = cmd.params.text.replace('@', ' ');
-
-					cmd_str += `G#W>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${sanitized_text}@\r\n`;
 					break;
 			}
 		}
@@ -2646,17 +2648,19 @@ const tool_functions = {
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
 			draw_cursor(3, px, py);
 
-			// Add this action to our history stack.
-			history.add({
-				action: 'write_text',
-				params: {
-					color: virtual_canvas.get_color(),
-					effect: 0, // hard-coded for now
-					rotation: 0, // hard-coded for now
-					text: tool_functions.write_text.text,
-					points: tool_functions.write_text.points
-				}
-			});
+			// If there is actually text, then add this action to our history stack.
+			if (tool_functions.write_text.text && tool_functions.write_text.text.toString().trim() !== '') {
+				history.add({
+					action: 'write_text',
+					params: {
+						color: virtual_canvas.get_color(),
+						effect: 0, // hard-coded for now
+						rotation: 0, // hard-coded for now
+						text: tool_functions.write_text.text,
+						points: tool_functions.write_text.points
+					}
+				});
+			}
 
 			// Reset all variables
 			tool_functions.write_text.insertion_point = 0;
