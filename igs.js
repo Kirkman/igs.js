@@ -1048,7 +1048,7 @@ const tools = [
 	{ 'name': 'Draw polyline', 'function': 'draw_polyline' },
 	{ 'name': 'Draw filled rectangle', 'function': 'draw_rect' },
 	{ 'name': 'Draw filled polygon', 'function': 'draw_polygon' },
-	{ 'name': 'Draw circle', 'function': 'draw_circle' },
+	// { 'name': 'Draw circle', 'function': 'draw_circle' },
 	{ 'name': 'Grab / blit', 'function': 'blit' },
 	{ 'name': 'Write text', 'function': 'write_text' },
 ];
