@@ -1436,9 +1436,10 @@ const history = {
 					}
 					break;
 				case 'draw_circle':
-					if (exp_fill_color !== cmd.params.color) {
-						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
-						exp_fill_color = cmd.params.color;
+					// Right now this command is only for HOLLOW circles, so we should set line color, not fill color. 
+					if (exp_line_color !== cmd.params.color) {
+						cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
+						exp_line_color = cmd.params.color;
 					}
 					// !!! Need to add logic for handling IGS' "Hollow" command
 					// which controls whether circle is drawn filled or as an outline. !!!
