@@ -1438,6 +1438,17 @@ const history = {
 					break;
 				case 'draw_circle':
 					// Right now this command is only for HOLLOW circles, so we should set line color, not fill color. 
+
+					// ACTUALLY, NO. I THINK THIS IS WRONG.
+					// To draw a hollow circle, we need to:
+					// 1. Set G#A>0,1,1:
+					// 2. Set fill color (the fill will be empty, but border picks up the fill color)
+					// 3. Draw the circles.
+					// 4. Reset the G#A attributes to their original values
+					//    (but only in this simplistic scenario -- if we implement
+					//     everything for the circles including patterns, then
+					//     we won't need to reset this)
+
 					if (exp_line_color !== cmd.params.color) {
 						cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
 						exp_line_color = cmd.params.color;
