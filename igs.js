@@ -33,6 +33,8 @@ let border_flag = null;
 let origin_x = null;
 let origin_y = null;
 
+let last_user_selected_tool = null;
+
 let last_loupe_x = null;
 let last_loupe_y = null;
 
@@ -1610,6 +1612,12 @@ const renderer = {
 
 		// Reset state
 		current_state = 'start';
+
+		// Make sure the user's last-selected tool doesn't get unselected just because they canceled.
+		if (last_user_selected_tool !== null && last_user_selected_tool !== current_tool) {
+			renderer.update_tool(last_user_selected_tool);
+		}
+
 		debug('!!! RENDER() END');
 	},
 	update_tool: function(tool_name) {
@@ -2814,6 +2822,7 @@ document.querySelector('.widget-tools select').addEventListener('change', functi
 	current_tool = new_tool;
 
 	if (current_state !== 'rendering') {
+		last_user_selected_tool = new_tool;
 		current_state = 'start';
 		tool_functions[current_tool].init();
 	}
