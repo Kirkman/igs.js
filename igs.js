@@ -1320,6 +1320,10 @@ const history = {
 		let exp_text_color = null;
 		let exp_pattern = null;
 		let exp_border_flag = null;
+		let exp_text_effect = null;
+		let exp_text_size = null;
+		let exp_text_rotation = null;
+
 
 		for (cmd of full_history) {
 			switch (cmd.action) {
@@ -1374,6 +1378,13 @@ const history = {
 					// for (let p=1; p<cmd.params.points.length; p++) {
 					// 	cmd_str += `G#D>${cmd.params.points[p][0]},${cmd.params.points[p][1]}:\r\n`;
 					// }
+
+
+					// IDEA FOR THE FUTURE:
+					// When users draw polylines or polygons with more than 128 points, 
+					// I could instead revert to the L/D commands (plus flood fill if needed)
+					// since there is no numerical limit on those.
+
 
 					// THIS CODE REQUIRES IGS 2.19 OR GREATER (SINGLE POLY LINE)
 					// First parameter of POLYLINE cmd is the number of points.
@@ -1432,10 +1443,46 @@ const history = {
 						}
 					}
 					break;
+				// I STUPIDLY DIDN'T IMPLEMENT "FONT" AS A PARAM OF WRITE_TEXT BEFORE
+				// ALLOWING OTHER PEOPLE TO USE THIS EDITOR.
+				// So for now, I _have_ to process `change_font`. But I'm going to update this
+				// eventually and handle all three params (effect, font, rotation) within the
+				// `write_text`` command, similar to how I'm handling color changes in each
+				// command.
+				case 'change_font':
+					if (exp_text_effect !== cmd.params.effect || exp_text_font !== cmd.params.font || exp_text_rotation !== cmd.params.rotation) {
+						cmd_str += `G#E>${cmd.params.effect},${cmd.params.font},${cmd.params.rotation}:\r\n`;
+						exp_text_effect = cmd.params.effect;
+						exp_text_font = cmd.params.font;
+						exp_text_rotation = cmd.params.rotation;
+					}
+					break;
+				// SEE ABOVE ABOUT CHANGE_FONT AND "FONT" PARAM.
+				case 'write_text':
+					if (exp_text_color !== cmd.params.color) {
+						cmd_str += `G#C>3,${cmd.params.color}:\r\n`;
+						exp_text_color = cmd.params.color;
+					}
+
+					// Maximum allowed line length is 128 chars, but I'm not checking for that right now.
+
+					// Just to be safe, we need to make sure the string does NOT contain an @ symbol, 
+					// since IGS uses @ as the command terminator here. We probably should alert the 
+					// user to this fact, or maybe completely disallow the typing of "@".
+					const sanitized_text = cmd.params.text.replace('@', ' ');
+
+					cmd_str += `G#W>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${sanitized_text}@\r\n`;
+					break;
 			}
 		}
 
 		// OPTIMIZATIONS
+
+
+		// REPEATED COMMANDS
+		// Need to remove instances where attributes (like color, or text effects) are changed repeatedly
+		// with no actual commands in between. This happens a lot as people experiment with colors, etc.
+
 
 		// POINTS
 
