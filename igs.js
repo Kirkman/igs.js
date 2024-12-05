@@ -3162,8 +3162,11 @@ function write_text_vdi(ctx, text, points) {
 
 	// By default text is left-aligned, so X coordinate is good as-is.
 	let src_x = points[0][0];
+
 	// By default text is baseline-aligned, so we have to calculate an offset to make sure font baseline is where user clicked.
-	let src_y = points[0][1] - (current_font.form_height - current_font.bottom);
+	// 2024-11-05 UPDATE: I began subtracting 1px as a kludge, after I saw that letters were rendering in JoshDraw off by 1px.
+	// Maybe a better solution would be to revise each of the "bottom" values in my font defs?
+	let src_y = points[0][1] - (current_font.form_height - current_font.bottom - 1);
 
 	// Iterate over each character in the string
 	for (let i=0; i<chars.length; i++) {
