@@ -665,6 +665,86 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 
 
+
+
+	// // These outer .hasAttribute() checks ensure we don't re-bind this event
+	// // when we render or replay the history (which can cascade).
+	// if (!display.hasAttribute('hasTouchDragHandler')) {
+	// 	// CANVAS MOUSEDOWN/MOUSEUP HANDLER - SPECIFICALLY FOR PENCIL
+	// 	// Basically we have to watch for mousedown. If mousemove comes next, it's a drag.
+	// 	// If not, and we record a mouseup, then treat it like a single click.
+	// 	display.addEventListener('touchstart', function(event) {
+	// 		if (current_tool !== null && current_tool == 'draw_point') {
+	// 			event.stopPropagation();
+	// 			event.preventDefault();
+	// 			mouse_is_down = true;
+	// 		}
+	// 		return false;
+	// 	}, false);
+	// 	display.addEventListener('touchend', function(event) {
+	// 		if (current_tool !== null && current_tool == 'draw_point') {
+	// 			debug(`Event Listener: Mouseup\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+	// 			event.stopPropagation();
+	// 			event.preventDefault();
+	// 			if (mouse_is_dragging == true) {
+	// 				tool_functions[current_tool].ondragend(event);
+	// 			}
+	// 			else if (mouse_is_dragging == false) {
+	// 				tool_functions[current_tool].onclick(event);
+	// 			}
+	// 		}
+	// 		// mouse_is_down = false;
+	// 		mouse_is_dragging = false;
+	// 		return false;
+	// 	}, false);
+
+
+	// 	// CANVAS MOUSEMOVE HANDLER
+	// 	// Using a throttle function to keep the app snappier, especially with the blitting.
+	// 	display.addEventListener('touchmove', throttleFunction((event) => {
+	// 		event.stopPropagation();
+	// 		event.preventDefault();
+
+	// 		const touches = event.touches;
+
+	// 		if (current_tool !== 'rendering') {
+	// 			const [px, py] = translate_to_screen(event.layerX, event.layerY);
+
+	// 			if (px <= screen_width && py <= screen_height) {
+	// 				// if (current_tool !== null) {
+	// 				// 	if (debug_mousemove == true) {
+	// 				// 		debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+	// 				// 	}
+	// 				// 	tool_functions[current_tool].mousemove(event);
+	// 				// }
+	// 				if (current_tool !== null && current_tool == 'draw_point') {
+	// 					if (mouse_is_down == true) {
+	// 						mouse_is_dragging = true;
+	// 						for (touch of touches) {
+	// 							const clickEvent = new MouseEvent('click', {
+	// 								bubbles: true,
+	// 								cancelable: true,
+	// 								view: window,
+	// 								clientX: touch.clientX,
+	// 								clientY: touch.clientY
+	// 							});
+
+	// 							tool_functions[current_tool].ondrag(clickEvent);
+	// 						}
+	// 					}
+	// 				}
+	// 			}
+	// 			else {
+	// 				update_status(null,null);
+	// 			}
+	// 		}
+	// 		return false;
+	// 	}, 100), false);
+	// 	display.setAttribute('hasTouchDragHandler', 'true');
+	// }
+
+
+
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
 	if (!display.hasAttribute('hasRightClickHandler')) {
