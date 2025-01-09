@@ -3068,34 +3068,43 @@ function draw_polyline(ctx, points) {
 
 
 
-
+// 2024: Updated to reflect Bresenham changes below.
 function getBresenhamLinePixels(ctx, x0, y0, x1, y1) {
 	var points = [];
 	var dx = Math.abs(x1-x0);
-	var dy = Math.abs(y1-y0);
+	var dy = Math.abs(y1-y0) * -1;
 	var sx = (x0 < x1) ? 1 : -1;
 	var sy = (y0 < y1) ? 1 : -1;
-	var err = dx-dy;
+	var err = dx+dy;
 
 	while(true) {
 		points.push([x0,y0]);
 
-		if ((x0==x1) && (y0==y1)) break;
+		if ((x0==x1) && (y0==y1)) { break };
 		var e2 = 2*err;
-		if (e2 >-dy){ err -= dy; x0  += sx; }
-		if (e2 < dx){ err += dx; y0  += sy; }
+		if (e2 >= dy) { err += dy; x0 += sx; }
+		if (e2 <= dx) { err += dx; y0 += sy; }
 	}
 
 	return points;
 }
 
 
+// Originally I used a slightly different version of the Bresebham algorithm
+// which I later learned yielded slightly different results than the Atari ST.
+// The source of that original algorithm MIGHT have been this, but I can't be certain:
+//     https://squeakyspacebar.github.io/2017/07/12/Procedural-Map-Generation-With-Voronoi-Diagrams.html#rendering-the-diagram
+// The first time I used the snippet was in `ripscrip-bresenham-test.js` in Feb 2018,
+// followed a few months later by use in my "Trump Approval" BBS door:
+// https://twitter.com/Kirkman/status/1032112707133157376
+
+// CORRECT VERSION OF BRESENHAM
 function bresenhamLine(ctx, x0, y0, x1, y1, xor=false) {
 	var dx = Math.abs(x1-x0);
-	var dy = Math.abs(y1-y0);
+	var dy = Math.abs(y1-y0) * -1;
 	var sx = (x0 < x1) ? 1 : -1;
 	var sy = (y0 < y1) ? 1 : -1;
-	var err = dx-dy;
+	var err = dx+dy;
 
 	while(true) {
 		let idx = null;
@@ -3120,10 +3129,10 @@ function bresenhamLine(ctx, x0, y0, x1, y1, xor=false) {
 
 		set_pixel(ctx, x0, y0, idx);
 
-		if ((x0==x1) && (y0==y1)) break;
+		if ((x0==x1) && (y0==y1)) { break };
 		var e2 = 2*err;
-		if (e2 >-dy){ err -= dy; x0  += sx; }
-		if (e2 < dx){ err += dx; y0  += sy; }
+		if (e2 >= dy) { err += dy; x0 += sx; }
+		if (e2 <= dx) { err += dx; y0 += sy; }
 	}
 }
 
