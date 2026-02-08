@@ -1128,7 +1128,7 @@ const tools = [
 	{ 'name': 'Draw polyline', 'function': 'draw_polyline' },
 	{ 'name': 'Draw filled rectangle', 'function': 'draw_rect' },
 	{ 'name': 'Draw filled polygon', 'function': 'draw_polygon' },
-	// { 'name': 'Draw circle', 'function': 'draw_circle' },
+	{ 'name': 'Draw circle', 'function': 'draw_circle' },
 	{ 'name': 'Grab / blit', 'function': 'blit' },
 	{ 'name': 'Write text', 'function': 'write_text' },
 ];
@@ -1455,31 +1455,31 @@ const history = {
 						cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
 						exp_line_color = cmd.params.color;
 					}
-					// THIS CODE IS COMPATIBLE WITH OLD IGS VERSIONS (DRAW LINE + DRAW TOs)
-					// // Draw first segment using DRAW LINE
-					// cmd_str += `G#L>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${cmd.params.points[1][0]},${cmd.params.points[1][1]}:\r\n`;
-					// // Draw remaining segments using DRAW TO
-					// for (let p=1; p<cmd.params.points.length; p++) {
-					// 	cmd_str += `G#D>${cmd.params.points[p][0]},${cmd.params.points[p][1]}:\r\n`;
-					// }
 
-
-					// IDEA FOR THE FUTURE:
-					// When users draw polylines or polygons with more than 128 points, 
-					// I could instead revert to the L/D commands (plus flood fill if needed)
-					// since there is no numerical limit on those.
-
-
-					// THIS CODE REQUIRES IGS 2.19 OR GREATER (SINGLE POLY LINE)
-					// First parameter of POLYLINE cmd is the number of points.
-					cmd_str += `G#z>${cmd.params.points.length}`;
-					for (let p=0; p<cmd.params.points.length; p++) {
-						cmd_str += `,${cmd.params.points[p][0]},${cmd.params.points[p][1]}`;
-						// If we're at the last command, then use the terminator and line breaks
-						if (p == cmd.params.points.length - 1) {
-							cmd_str += `:\r\n`;
+					// When users draw polylines with more than 128 points, revert to using 
+					// the L and D commands since there is no numerical limit on those.
+					if (cmd.params.points.length > 127) {
+						// THIS CODE IS COMPATIBLE WITH OLD IGS VERSIONS (DRAW LINE + DRAW TOs)
+						// Draw first segment using DRAW LINE
+						cmd_str += `G#L>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${cmd.params.points[1][0]},${cmd.params.points[1][1]}:\r\n`;
+						// Draw remaining segments using DRAW TO
+						for (let p=1; p<cmd.params.points.length; p++) {
+							cmd_str += `G#D>${cmd.params.points[p][0]},${cmd.params.points[p][1]}:\r\n`;
 						}
 					}
+					else {
+						// THIS CODE REQUIRES IGS 2.19 OR GREATER (SINGLE POLY LINE)
+						// First parameter of POLYLINE cmd is the number of points.
+						cmd_str += `G#z>${cmd.params.points.length}`;
+						for (let p=0; p<cmd.params.points.length; p++) {
+							cmd_str += `,${cmd.params.points[p][0]},${cmd.params.points[p][1]}`;
+							// If we're at the last command, then use the terminator and line breaks
+							if (p == cmd.params.points.length - 1) {
+								cmd_str += `:\r\n`;
+							}
+						}
+					}
+
 					break;
 				case 'draw_rect':
 					if (exp_fill_color !== cmd.params.color) {
