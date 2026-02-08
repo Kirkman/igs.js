@@ -31,6 +31,10 @@ def main(input):
 	print(f'Length: {len(font_file_bytes)}')
 
 
+	# -----------------------------------------------------------------------
+	# See: https://freemint.github.io/tos.hyp/en/vdi_structures.html#FONT_HDR
+	# -----------------------------------------------------------------------
+
 	# JOSH NOTES:
 	# Font should be 2,650 bytes
 	# Offset table begins at offset 88 bytes
@@ -69,6 +73,11 @@ def main(input):
 	# form_height		Form height
 
 	# next_font			Pointer to the next font
+
+
+	# ------------------------------------------
+	# From "GEM Programmer's Toolkit", page F-4:
+	# ------------------------------------------
 
 	"""
 	The font data is organized as a single raster area. The area's height equals the font height and its width equals the sum of the character widths.
