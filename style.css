@@ -162,7 +162,7 @@ a {
 
 /* Hide the fill-border option for now. I just want it to always be set to true to preserve outline shapes. */
 .option-set.option-fill-border {
-	display: none;
+/*	display: none;*/
 }
 
 
