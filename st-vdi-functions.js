@@ -311,7 +311,7 @@ function v_circle(xc, yc, xrad, res, filled) {
 // Circular arc (open). yrad = SMUL_DIV(xrad, xsize, ysize).
 // beg_ang/end_ang from parameters. Dispatched to v_pline (open).
 // ---------------------------------------------------------------------------
-function v_arc(ctx, xc, yc, xrad, beg_ang, end_ang, res, color) {
+function v_arc(xc, yc, xrad, beg_ang, end_ang, res) {
 	const { xsize, ysize } = RESOLUTIONS[res];
 	const yrad = smul_div(xrad, xsize, ysize);
 	let del_ang = end_ang - beg_ang;
@@ -322,7 +322,7 @@ function v_arc(ctx, xc, yc, xrad, beg_ang, end_ang, res, color) {
 
 	// Draw polyline connecting the vertices
 	let out_points = [];
-	out_points = pline(ctx, vertices, color);
+	out_points = pline(vertices);
 
 	return out_points;
 }
@@ -332,7 +332,7 @@ function v_arc(ctx, xc, yc, xrad, beg_ang, end_ang, res, color) {
 // Circular pie wedge. yrad = SMUL_DIV(xrad, xsize, ysize).
 // Center point appended. Dispatched to plygn().
 // ---------------------------------------------------------------------------
-function v_pieslice(ctx, xc, yc, xrad, beg_ang, end_ang, res, filled, color) {
+function v_pieslice(xc, yc, xrad, beg_ang, end_ang, res, filled) {
 	const { xsize, ysize } = RESOLUTIONS[res];
 	const yrad = smul_div(xrad, xsize, ysize);
 	let del_ang = end_ang - beg_ang;
@@ -364,7 +364,7 @@ function v_pieslice(ctx, xc, yc, xrad, beg_ang, end_ang, res, filled, color) {
 // we're in raster mode (xfm_mode >= 2).
 // Drawn as two half-arcs via plygn().
 // ---------------------------------------------------------------------------
-function v_ellipse(ctx, xc, yc, xrad, yrad, filled, color) {
+function v_ellipse(xc, yc, xrad, yrad, filled) {
 	const n_steps = clc_nsteps(xrad, yrad);
 
 	const arc1 = clc_arc_pts(xc, yc, xrad, yrad, 0, 1800, 1800, n_steps);
@@ -389,7 +389,7 @@ function v_ellipse(ctx, xc, yc, xrad, yrad, filled, color) {
 // Elliptical arc (open). xrad/yrad from parameters.
 // Dispatched to v_pline (open).
 // ---------------------------------------------------------------------------
-function v_ellarc(ctx, xc, yc, xrad, yrad, beg_ang, end_ang, color) {
+function v_ellarc(xc, yc, xrad, yrad, beg_ang, end_ang) {
 	let del_ang = end_ang - beg_ang;
 	if (del_ang < 0) del_ang += 3600;
 	const n_steps = clc_nsteps(xrad, yrad);
@@ -398,7 +398,7 @@ function v_ellarc(ctx, xc, yc, xrad, yrad, beg_ang, end_ang, color) {
 
 	// Draw polyline connecting the vertices
 	let out_points = [];
-	out_points = pline(ctx, vertices, color);
+	out_points = pline(vertices);
 
 	return out_points;
 }
@@ -408,7 +408,7 @@ function v_ellarc(ctx, xc, yc, xrad, yrad, beg_ang, end_ang, color) {
 // Elliptical pie wedge. xrad/yrad from parameters.
 // Center point appended. Dispatched to plygn().
 // ---------------------------------------------------------------------------
-function v_ellpie(ctx, xc, yc, xrad, yrad, beg_ang, end_ang, filled, color) {
+function v_ellpie(xc, yc, xrad, yrad, beg_ang, end_ang, filled) {
 	let del_ang = end_ang - beg_ang;
 	if (del_ang < 0) del_ang += 3600;
 	const n_steps = clc_nsteps(xrad, yrad);

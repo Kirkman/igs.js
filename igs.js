@@ -227,6 +227,37 @@ function translate_to_screen(sx, sy) {
 	return [px, py];
 }
 
+// This function updates the JSON histories produced by older versions of JoshDraw
+// so that those files can still be opened and edited correctly.
+function fix_history(old_history) {
+	new_history = [];
+	for (cmd of old_history) {
+		switch (cmd.action) {
+			// CONVERT CIRCLES TO ELLIPSES
+			// No need for a separate tool/mode in JoshDraw when a circle *is* an ellipse.
+			case 'draw_circle':
+				new_history.push({
+					action: 'draw_ellipse',
+					params: {
+						color: cmd.params.color,
+						center: cmd.params.center,
+						x_radius: cmd.params.radius,
+						y_radius: cmd.params.radius
+					}
+				})
+				break;
+
+			// NEED TO ADD CASE HERE FOR `change_font`
+			// (once I have properly wrapped its functionality into `write_text`)
+
+			// All other commands should be fine.
+			default:
+				new_history.push(cmd);
+		}
+	}
+	return new_history;
+}
+
 
 const button_load = document.querySelector('.load-json');
 button_load.addEventListener('click', function(event) {
@@ -255,16 +286,18 @@ upload_input.addEventListener('change', function(event) {
 	const reader = new FileReader();
 	reader.readAsText(file, 'UTF-8');
 
-	// here we tell the reader what to do when it's done reading...
+	// Once the file has been read, parse the JSON and start the renderer.
 	reader.onload = readerEvent => {
 		const content = readerEvent.target.result; // this is the content!
 		const json = JSON.parse(content);
-		history.load(json.history);
+		// Fix the history of older JSON files. 
+		// Primarily to deal with things like draw_circle and change_font.
+		const clean_history = fix_history(json.history);
+		// Now load the history
+		history.load(clean_history);
+		// Render it all
 		renderer.render();
 	}
-
-
-
 });
 
 
@@ -1134,16 +1167,14 @@ color_picker_inputs.forEach((elem)=> {
 });
 
 
-
-
-
 const tools = [
 	{ 'name': 'Pencil', 'function': 'draw_point' },
 	{ 'name': 'Draw line', 'function': 'draw_line' },
 	{ 'name': 'Draw polyline', 'function': 'draw_polyline' },
 	{ 'name': 'Draw rectangle', 'function': 'draw_rect' },
 	{ 'name': 'Draw polygon', 'function': 'draw_polygon' },
-	{ 'name': 'Draw circle', 'function': 'draw_circle' },
+	// { 'name': 'Draw curve', 'function': 'draw_curve' },
+	{ 'name': 'Draw ellipse/circle', 'function': 'draw_ellipse' },
 	{ 'name': 'Grab / blit', 'function': 'blit' },
 	{ 'name': 'Write text', 'function': 'write_text' },
 ];
@@ -1531,26 +1562,37 @@ const history = {
 						}
 					}
 					break;
-				case 'draw_circle':
-					// Right now this command is only for HOLLOW circles, so we should set line color, not fill color. 
+				// JoshDraw stores circles as ellipses with equal radii. 
+				// But to optimize for IG, we'll use the circle command when needed.
+				case 'draw_ellipse':
+					// NOTE ABOUT CIRCLES/ELLIPSES, BORDERS, AND COLOR
+					// Because the shape of filled circles is sometimes radically different
+					// from the shape of outlined circles, I made a design decision
+					// to *always* draw a border around circles in JoshDraw.
+					// This ensures the final circles are more consistent with the previews.
 
-					// ACTUALLY, NO. I THINK THIS IS WRONG.
-					// To draw a hollow circle, we need to:
-					// 1. Set G#A>0,1,1:
+					// That means I do not bother with IG's [H]ollow command.
+					// Instead I set outlines and fills using the [A]ttribute command.
+					// Those do NOT need to be handled within this case. 
+					// They are handled in the `change_pattern` case.
+
+					// For reference, a hollow circle needs:
+					// 1. Set G#A>0,1,1:  (handled by `change_pattern`)
 					// 2. Set fill color (the fill will be empty, but border picks up the fill color)
-					// 3. Draw the circles.
-					// 4. Reset the G#A attributes to their original values
-					//    (but only in this simplistic scenario -- if we implement
-					//     everything for the circles including patterns, then
-					//     we won't need to reset this)
 
 					if (exp_line_color !== cmd.params.color) {
-						cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
+						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
 						exp_line_color = cmd.params.color;
 					}
-					// !!! Need to add logic for handling IGS' "Hollow" command
-					// which controls whether circle is drawn filled or as an outline. !!!
-					cmd_str += `G#O>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.radius}:\r\n`;
+
+					// Handle circles [O]
+					if (cmd.params.x_radius == cmd.params.y_radius) {
+						cmd_str += `G#O>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.x_radius}:\r\n`;
+					}
+					// Handle ellipses [Q]
+					else {
+						cmd_str += `G#Q>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.x_radius},${cmd.params.y_radius}:\r\n`;
+					}
 					break;
 				case 'blit':
 					// Right now I only support screen-to-screen blitting (type=0).
@@ -1581,7 +1623,7 @@ const history = {
 				// ALLOWING OTHER PEOPLE TO USE THIS EDITOR.
 				// So for now, I _have_ to process `change_font`. But I'm going to update this
 				// eventually and handle all three params (effect, font, rotation) within the
-				// `write_text`` command, similar to how I'm handling color changes in each
+				// `write_text` command, similar to how I'm handling color changes in each
 				// command.
 				case 'change_font':
 					if (exp_text_effect !== cmd.params.effect || exp_text_font !== cmd.params.font || exp_text_rotation !== cmd.params.rotation) {
@@ -1795,39 +1837,52 @@ const renderer = {
 		// My command history includes a `color` param, but I probably shouldn't be including that. 
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 
-		// Fill_rect wants all four corners, but history saves only upper left and lower right.
-		const corners = [
-			params.points[0], 
-			[params.points[1][0], params.points[0][1]], 
-			params.points[1], 
-			[params.points[0][0], params.points[1][1]], 
-		];
-
 		// Draw the rectangle with fill
-		fill_rect('virtual', corners);
+		fill_rect('virtual', params.points);
 
 		// Draw the edges of the rectangle atop the fill, if border_flag is true
 		if (border_flag) {
-			draw_line('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[0][1]);
-			draw_line('virtual', params.points[1][0], params.points[0][1], params.points[1][0], params.points[1][1]);
-			draw_line('virtual', params.points[1][0], params.points[1][1], params.points[0][0], params.points[1][1]);
-			draw_line('virtual', params.points[0][0], params.points[1][1], params.points[0][0], params.points[0][1]);
+			draw_rect('virtual', params.points);
+		}
+	},
+	draw_curve: function(params) {
+		this.update_tool('draw_curve');
+
+		// Draw the curve
+		draw_curve('virtual', params.center[0], params.center[1], params.radius);
+	},
+
+	// HANDLE CIRCLE AND ELLIPSE TOGETHER
+	// There's no reason to clutter the interface with a separate tool for each.
+	// JoshDraw will record circles in its history as ellipses with equal radii.
+	// But when drawing, we'll differentiate.
+	// If the radii are equal, then we'll draw it using circle-specific functions;
+	// if not, we'll use ellipse-specific functions.
+	draw_ellipse: function(params) {
+		this.update_tool('draw_ellipse');
+
+		// If the radii are equal, treat this as a circle not an ellipse.
+		if (params.x_radius == params.y_radius) {
+			// Draw the circle with fill
+			fill_circle('virtual', params.center[0], params.center[1], params.x_radius);
+
+			// Draw the edges of the circle atop the fill, if border_flag is true
+			if (border_flag) {
+				draw_circle('virtual', params.center[0], params.center[1], params.x_radius);
+			}
+		}
+		else {
+			// Draw the ellipse with fill
+			fill_ellipse('virtual', params.center[0], params.center[1], params.x_radius, params.y_radius);
+
+			// Draw the edges of the ellipse atop the fill, if border_flag is true
+			if (border_flag) {
+				draw_ellipse('virtual', params.center[0], params.center[1], params.x_radius, params.y_radius);
+			}
 		}
 	},
 
-	draw_circle: function(params) {
-		this.update_tool('draw_circle');
-		// My command history includes a `color` param, but I probably shouldn't be including that. 
-		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 
-		// Draw the rectangle with fill
-		fill_circle('virtual', params.center[0], params.center[1], params.radius);
-
-		// Draw the edges of the rectangle atop the fill, if border_flag is true
-		if (border_flag) {
-			draw_circle('virtual', params.center[0], params.center[1], params.radius);
-		}
-	},
 	draw_polygon: function(params) {
 		this.update_tool('draw_polygon');
 
@@ -2317,10 +2372,14 @@ const tool_functions = {
 			if (current_state == 'drawing') {
 				// Draw the edges of the temporary rectangle
 				set_color(virtual_canvas.get_color(), liveContext, 1);
-				draw_line(liveContext, origin_x, origin_y, px, origin_y);
-				draw_line(liveContext, px, origin_y, px, py);
-				draw_line(liveContext, px, py, origin_x, py);
-				draw_line(liveContext, origin_x, py, origin_x, origin_y);
+
+				// Draw the rectangle with fill
+				fill_rect(liveContext, [[origin_x, origin_y], [px, py]]);
+
+				// Draw the edges of the rectangle atop the fill, if border_flag is true
+				if (border_flag) {
+					draw_rect(liveContext, [[origin_x, origin_y], [px, py]]);
+				}
 			}
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
@@ -2328,12 +2387,35 @@ const tool_functions = {
 		}
 	},
 
-	draw_circle: {
+	draw_curve: {
+		// Need to figure out what variables are needed
 		center: null,
 		radius: null,
 		init: function() {},
 		onclick: function(event) {
-			debug(`draw_circle click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			debug(`draw_curve click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+		},
+		// ondblclick: function(event) {
+		// }, 
+		// When we see a right click, we need to cancel the circle.
+		onrightclick: function(event) {
+			debug(`draw_curve right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+		},
+		mousemove: function(event) {
+			if (debug_mousemove == true) {
+				debug(`draw_curve mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			}
+		}
+	},
+
+	draw_ellipse: {
+		// Need to figure out what variables are needed
+		center: null,
+		x_radius: null,
+		y_radius: null,
+		init: function() {},
+		onclick: function(event) {
+			debug(`draw_ellipse click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -2343,21 +2425,31 @@ const tool_functions = {
 			// Start state means first click
 			if (current_state == 'start') {
 				current_state = 'drawing';
-				// Mark origin of the circle
+				// Mark origin of the ellipse
 				origin_x = px;
 				origin_y = py;
 
 				// Add the center
-				tool_functions.draw_circle.center = [px, py];
+				tool_functions.draw_ellipse.center = [px, py];
 			}
 
-			// Drawing state means second click. Time to draw the circle.
+			// Drawing state means second click. Time to draw the ellipse.
 			else if (current_state == 'drawing') {
-				// Find the radius based from origin to this second point.
-				let radius = get_distance(origin_x, origin_y, px, py);
+				let x_radius, y_radius;
+				// Check if shift key is being held.
+				// If so, use circle calculation instead of ellipse.
+				if (event.shiftKey) {
+					x_radius = get_distance(origin_x, origin_y, px, py);
+					y_radius = x_radius;
+				}
+				else {
+					// Find the x and y radii by measuring from origin to this second point.
+					[x_radius, y_radius] = get_distance_xy(origin_x, origin_y, px, py);
+				}
 
-				// Add just the origin and the radius.
-				tool_functions.draw_circle.radius = radius;
+				// Add the radii
+				tool_functions.draw_ellipse.x_radius = x_radius;
+				tool_functions.draw_ellipse.y_radius = y_radius;
 
 				// Reset the cursor layer to get rid of the guide line
 				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -2366,19 +2458,21 @@ const tool_functions = {
 
 				// Add this action to our history stack.
 				history.add({
-					action: 'draw_circle',
+					action: 'draw_ellipse',
 					params: {
 						color: virtual_canvas.get_color(),
-						center: tool_functions.draw_circle.center,
-						radius: tool_functions.draw_circle.radius
+						center: tool_functions.draw_ellipse.center,
+						x_radius: tool_functions.draw_ellipse.x_radius,
+						y_radius: tool_functions.draw_ellipse.y_radius
 					}
 				});
 
 				// Reset all variables
 				origin_x = null;
 				origin_y = null;
-				tool_functions.draw_circle.center = null;
-				tool_functions.draw_circle.radius = null;
+				tool_functions.draw_ellipse.center = null;
+				tool_functions.draw_ellipse.x_radius = null;
+				tool_functions.draw_ellipse.y_radius = null;
 				current_state = 'start';
 
 				// Redraw everything
@@ -2387,9 +2481,9 @@ const tool_functions = {
 		},
 		// ondblclick: function(event) {
 		// }, 
-		// When we see a right click, we need to cancel the circle.
+		// When we see a right click, we need to cancel the ellipse.
 		onrightclick: function(event) {
-			debug(`draw_circle right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+			debug(`draw_ellipse right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -2406,14 +2500,16 @@ const tool_functions = {
 				// Reset all variables
 				origin_x = null;
 				origin_y = null;
-				tool_functions.draw_circle.center = null;
-				tool_functions.draw_circle.radius = null;
+				tool_functions.draw_ellipse.center = null;
+				tool_functions.draw_ellipse.x_radius = null;
+				tool_functions.draw_ellipse.y_radius = null;
 			}
 			current_state = 'start';
 		},
 		mousemove: function(event) {
+			let circle_mode = false;
 			if (debug_mousemove == true) {
-				debug(`draw_circle mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+				debug(`draw_ellipse mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 			}
 
 			let sx = event.layerX;
@@ -2427,10 +2523,24 @@ const tool_functions = {
 				// Draw the edges of the temporary rectangle
 				set_color(virtual_canvas.get_color(), liveContext, 1);
 
-				// Find the radius based from origin to this second point.
-				let radius = get_distance(origin_x, origin_y, px, py);
-
-				draw_circle(liveContext, origin_x, origin_y, radius);
+				// Check if shift key is being held.
+				// If so, use circle instead of ellipse.
+				if (event.shiftKey) {
+					let radius = get_distance(origin_x, origin_y, px, py);
+					fill_circle(liveContext, origin_x, origin_y, radius);
+					if (border_flag) {
+						draw_circle(liveContext, origin_x, origin_y, radius);
+					}
+				}
+				// If not, use ellipse mode.
+				else {
+					// Find the x/y radii by measuring from origin to second point.
+					let [x_radius, y_radius] = get_distance_xy(origin_x, origin_y, px, py);
+					fill_ellipse(liveContext, origin_x, origin_y, x_radius, y_radius);
+					if (border_flag) {
+						draw_ellipse(liveContext, origin_x, origin_y, x_radius, y_radius);
+					}
+				}
 			}
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
@@ -2540,14 +2650,21 @@ const tool_functions = {
 
 				set_color(virtual_canvas.get_color(), liveContext, 1);
 
-				// Draw previous segments of the polyline
-				draw_polyline(liveContext, tool_functions.draw_polygon.points);
-
-				// Draw the temporary line for current segment
-				draw_line(liveContext, origin_x, origin_y, px, py);
-				set_color(virtual_canvas.get_color(), liveContext, 1);
+				// If we have three points (two previous plus one current)
+				// then draw a filled polygon.
+				if (tool_functions.draw_polygon.points.length >= 2) {
+					fill_poly(liveContext, tool_functions.draw_polygon.points.concat([[px, py]]));
+				}
+				// If we only have two points, draw a line.
+				else {
+					// Draw initial points as polyline
+					draw_polyline(liveContext, tool_functions.draw_polygon.points.concat([[px, py]]));
+				}
+				// If we are supposed to show the border, then draw it.
+				if (border_flag) {
+					draw_polyline(liveContext, tool_functions.draw_polygon.points.concat([[px, py]]));
+				}
 			}
-
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
 			update_status(px, py);
@@ -2726,10 +2843,7 @@ const tool_functions = {
 				set_color(temp_color, liveContext, 1);
 				// Set XOR to true when drawing these lines. Ensures they will 
 				// always be visible over the area we are tracing.
-				draw_line(liveContext, origin_x, origin_y, px, origin_y, true);
-				draw_line(liveContext, px, origin_y, px, py, true);
-				draw_line(liveContext, px, py, origin_x, py, true);
-				draw_line(liveContext, origin_x, py, origin_x, origin_y, true);
+				draw_rect(liveContext, [[origin_x, origin_y], [px,py]], true);
 				set_color(orig_color, liveContext, 1);
 			}
 
@@ -3004,10 +3118,17 @@ function set_color(color_index, ctx, opacity=1) {
 }
 
 
+function get_distance_xy(x1, y1, x2, y2) {
+	let dx = Math.abs(x2 - x1);
+	let dy = Math.abs(y2 - y1);
+	return [dx, dy];
+}
+
+
 function get_distance(x1, y1, x2, y2) {
 	let dx = x2 - x1;
 	let dy = y2 - y1;
-	return Math.round(Math.sqrt(dx * dx + dy * dy));
+	return Math.round(Math.sqrt((dx * dx) + (dy * dy)));
 }
 
 // =========================================
@@ -3103,7 +3224,7 @@ function draw_points(ctx, points, xor=false, ignore_patterns=false) {
 			if (virtual_canvas.get_palette().length == 4) { bitmask = 0x3; }
 
 			// Apply the bit mask, and get correct index.
-			idx = (~ virtual_canvas.get_pixel(x0, y0)) & bitmask;
+			idx = (~ virtual_canvas.get_pixel(point[0], point[1])) & bitmask;
 			set_color(idx, ctx);
 			// Call set_pixel directly with the needed color value.
 			set_pixel(ctx, point[0], point[1], idx);
@@ -3124,49 +3245,105 @@ function draw_points(ctx, points, xor=false, ignore_patterns=false) {
 }
 
 
-function fill_rect(ctx, corners) {
-	const x0 = Math.min(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
-	const x1 = Math.max(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
-
-	const y0 = Math.min(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
-	const y1 = Math.max(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
-
-	for (let y=y0; y<y1+1; y++) {
-		for (let x=x0; x<x1+1; x++) {
-			fill_pixel(ctx, x, y);
-		}
-	}
-}
-
-
 function draw_line(ctx, x0, y0, x1, y1, xor=false) {
 	let idx = null;
 	const out_points = abline(x0, y0, x1, y1);
-	draw_points(ctx, out_points);
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, out_points, xor, true);
 }
 
 
-function draw_polyline(ctx, points) {
+function draw_rect(ctx, points, xor=false) {
+	const x0 = Math.min(points[0][0], points[1][0]);
+	const x1 = Math.max(points[0][0], points[1][0]);
+
+	const y0 = Math.min(points[0][1], points[1][1]);
+	const y1 = Math.max(points[0][1], points[1][1]);
+
+	draw_line(ctx, x0, y0, x1, y0, xor);
+	draw_line(ctx, x1, y0, x1, y1, xor);
+	draw_line(ctx, x1, y1, x0, y1, xor);
+	draw_line(ctx, x0, y1, x0, y0, xor);
+}
+
+
+function fill_rect(ctx, points, xor=false) {
+	const x0 = Math.min(points[0][0], points[1][0]);
+	const x1 = Math.max(points[0][0], points[1][0]);
+
+	const y0 = Math.min(points[0][1], points[1][1]);
+	const y1 = Math.max(points[0][1], points[1][1]);
+
+	let out_points = [];
+	for (let y=y0; y<y1+1; y++) {
+		for (let x=x0; x<x1+1; x++) {
+			out_points.push([x,y]);
+		}
+	}
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, out_points, xor);
+}
+
+
+function draw_polyline(ctx, points, xor=false) {
 	let out_points = pline(points);
-	draw_points(ctx, out_points);
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, out_points, xor, true);
 }
 
 
-function fill_poly(ctx, points) {
+function fill_poly(ctx, points, xor=false) {
 	const out_points = scanline_fill(points);
-	draw_points(ctx, out_points);
+	draw_points(ctx, out_points, xor);
 }
 
 
-function fill_circle(ctx, xc, yc, r) {
-	const points = v_circle(xc, yc, r, 'low', true);
-	draw_points(ctx, points);
-}
-
-
-function draw_circle(ctx, xc, yc, r) {
+function draw_ellarc(ctx, xc, yc, r, xor=false) {
 	const points = v_circle(xc, yc, r, 'low', false);
-	draw_points(ctx, points, false, true);
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, points, xor, true);
+}
+
+
+function draw_circle(ctx, xc, yc, r, xor=false) {
+	const points = v_circle(xc, yc, r, 'low', false);
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, points, xor, true);
+}
+
+
+function fill_circle(ctx, xc, yc, r, xor=false) {
+	const points = v_circle(xc, yc, r, 'low', true);
+	draw_points(ctx, points, xor);
+}
+
+
+function draw_ellipse(ctx, xc, yc, xrad, yrad, xor=false) {
+	let points;
+	// Check for circle vs ellipse
+	if (xrad == yrad) {
+		points = v_circle(xc, yc, xrad, 'low', false);
+	}
+	else {
+		points = v_ellipse(xc, yc, xrad, yrad, false);
+	}
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, points, xor, true);
+}
+
+
+function fill_ellipse(ctx, xc, yc, xrad, yrad, xor=false) {
+	let points;
+	// Check for circle vs ellipse
+	if (xrad == yrad) {
+		// Set `filled` to true
+		points = v_circle(xc, yc, xrad, 'low', true);
+	}
+	else {
+		// Set `filled` to true
+ 		points = v_ellipse(xc, yc, xrad, yrad, true);
+	}
+	draw_points(ctx, points, xor);
 }
 
 
