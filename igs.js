@@ -179,6 +179,16 @@ function debug(s) {
 	}
 }
 
+// Test if two arrays are equal.
+function arraysEqual(a, b) {
+	if (a === b) return true
+	if (a.length !== b.length) return false
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) return false
+	}
+	return true
+}
+
 
 // shim layer with setTimeout fallback
 window.requestAnimFrame = (function(){
@@ -357,6 +367,13 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		root.style.setProperty(`--horizontal-scale`, scale_horiz);
 		root.style.setProperty(`--vertical-scale`, scale_vert);
 	}
+	else if (user_resolution.slug == 'atari_st_high') {
+		scale_horiz = 2;
+		scale_vert = 2;
+		root.style.setProperty(`--horizontal-scale`, scale_horiz);
+		root.style.setProperty(`--vertical-scale`, scale_vert);
+	}
+
 
 	// Set up virtual canvas
 	if (virtual_canvas.data.length < 1) {
@@ -790,7 +807,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 				}
 			}
 			return false;
-		}, 25), false);
+		}, 33), false);
 		display.setAttribute('hasMouseMoveHandler', 'true');
 	}
 
@@ -904,7 +921,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		pattern_select.setAttribute('hasChangeHandler', 'true');
 	}
 
-
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
 	const border_flag_input = document.querySelector('#fill-border');
@@ -914,8 +930,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			// Set global border_flag to new value.
 			const current_fill_border_flag = this.checked;
 
-
-			if (current_fill_border_flag == true || current_fill_border_flag == 'true') {
+			if (current_fill_border_flag == true || current_fill_border_flag == 'true' || current_fill_border_flag == 'checked') {
 				border_flag = 1;
 			}
 			else {
@@ -1126,8 +1141,8 @@ const tools = [
 	{ 'name': 'Pencil', 'function': 'draw_point' },
 	{ 'name': 'Draw line', 'function': 'draw_line' },
 	{ 'name': 'Draw polyline', 'function': 'draw_polyline' },
-	{ 'name': 'Draw filled rectangle', 'function': 'draw_rect' },
-	{ 'name': 'Draw filled polygon', 'function': 'draw_polygon' },
+	{ 'name': 'Draw rectangle', 'function': 'draw_rect' },
+	{ 'name': 'Draw polygon', 'function': 'draw_polygon' },
 	{ 'name': 'Draw circle', 'function': 'draw_circle' },
 	{ 'name': 'Grab / blit', 'function': 'blit' },
 	{ 'name': 'Write text', 'function': 'write_text' },
@@ -1766,20 +1781,14 @@ const renderer = {
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 
 		// Draw the line
-		bresenhamLine('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
+		draw_line('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
 	},
 	draw_polyline: function(params) {
 		this.update_tool('draw_polyline');
 		// My command history includes a `color` param, but I probably shouldn't be including that. 
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 
-		// Draw first segment
-		bresenhamLine('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
-
-		// Draw remaining segments
-		for (let p=1; p<params.points.length-1; p++) {
-			bresenhamLine('virtual', params.points[p][0], params.points[p][1], params.points[p+1][0], params.points[p+1][1]);
-		}
+		draw_polyline('virtual', params.points);
 	},
 	draw_rect: function(params) {
 		this.update_tool('draw_rect');
@@ -1799,10 +1808,10 @@ const renderer = {
 
 		// Draw the edges of the rectangle atop the fill, if border_flag is true
 		if (border_flag) {
-			bresenhamLine('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[0][1]);
-			bresenhamLine('virtual', params.points[1][0], params.points[0][1], params.points[1][0], params.points[1][1]);
-			bresenhamLine('virtual', params.points[1][0], params.points[1][1], params.points[0][0], params.points[1][1]);
-			bresenhamLine('virtual', params.points[0][0], params.points[1][1], params.points[0][0], params.points[0][1]);
+			draw_line('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[0][1]);
+			draw_line('virtual', params.points[1][0], params.points[0][1], params.points[1][0], params.points[1][1]);
+			draw_line('virtual', params.points[1][0], params.points[1][1], params.points[0][0], params.points[1][1]);
+			draw_line('virtual', params.points[0][0], params.points[1][1], params.points[0][0], params.points[0][1]);
 		}
 	},
 
@@ -1823,7 +1832,7 @@ const renderer = {
 		this.update_tool('draw_polygon');
 
 		// Fill the polygon
-		fill_poly_vdi('virtual', params.points);
+		fill_poly('virtual', params.points);
 
 		// Draw the edges of the polygon, if border_flag is true
 		if (border_flag) {
@@ -1832,7 +1841,7 @@ const renderer = {
 				for (let i=0; i<params.points.length; i++) {
 					let j=i+1;
 					if (i == params.points.length-1) { j=0; }
-					bresenhamLine(
+					draw_line(
 						'virtual',
 						params.points[i][0],
 						params.points[i][1],
@@ -1935,9 +1944,18 @@ const tool_functions = {
 			update_status(px, py);
 		},
 		ondrag: function(event) {
+			debug(`draw_point drag\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
+
 			if (current_state == 'start' || current_state == null) {
 				current_state = 'drawing';
 			}
+
+			// -----------------------------------------------------
+			// !!!!! AT SOME POINT THIS NEEDS TO BE REFACTORED !!!!!
+			// -----------------------------------------------------
+			// It's nuts to store all of these as individual points.
+			// If a user drags the pencil, we need treat it like a polyline
+			// which at least is a little more manageable, size-wise.
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -1947,7 +1965,18 @@ const tool_functions = {
 			let new_pixels = [[px, py]];
 			if (tool_functions.draw_point.points.length > 0) {
 				let origin = tool_functions.draw_point.points.at(-1);
-				new_pixels = getBresenhamLinePixels(context, origin[0], origin[1], px, py);
+				// I'm using ST VDI `abline` to compute the pixels between two coords.
+				// However, abline automatically reorders endpoints to left-to-right.
+				// In this case we need to restore the original order, otherwise
+				// the wrong coordinates will be used to connect the pixels.
+				new_pixels = abline(origin[0], origin[1], px, py);
+				// If the origin is NOT the first coordinate of the returned points,
+				// then we need to reverse the array.
+				if (!arraysEqual(origin, new_pixels[0])) {
+					new_pixels = new_pixels.slice().reverse();
+				}
+				// Next, remove the first pixel of new_pixels, since it repeats the origin.
+				new_pixels.shift();
 			}
 
 			for (pixel of new_pixels) {
@@ -2088,7 +2117,7 @@ const tool_functions = {
 
 				// Draw the temporary line
 				set_color(virtual_canvas.get_color(), liveContext, 1);
-				bresenhamLine(liveContext, origin_x, origin_y, px, py);
+				draw_line(liveContext, origin_x, origin_y, px, py);
 			}
 
 			draw_cursor(0, px, py);
@@ -2188,7 +2217,7 @@ const tool_functions = {
 				}
 
 				// Draw the new segment
-				bresenhamLine(liveContext, origin_x, origin_y, px, py);
+				draw_line(liveContext, origin_x, origin_y, px, py);
 			}
 
 			draw_cursor(0, px, py);
@@ -2288,10 +2317,10 @@ const tool_functions = {
 			if (current_state == 'drawing') {
 				// Draw the edges of the temporary rectangle
 				set_color(virtual_canvas.get_color(), liveContext, 1);
-				bresenhamLine(liveContext, origin_x, origin_y, px, origin_y);
-				bresenhamLine(liveContext, px, origin_y, px, py);
-				bresenhamLine(liveContext, px, py, origin_x, py);
-				bresenhamLine(liveContext, origin_x, py, origin_x, origin_y);
+				draw_line(liveContext, origin_x, origin_y, px, origin_y);
+				draw_line(liveContext, px, origin_y, px, py);
+				draw_line(liveContext, px, py, origin_x, py);
+				draw_line(liveContext, origin_x, py, origin_x, origin_y);
 			}
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
@@ -2322,12 +2351,12 @@ const tool_functions = {
 				tool_functions.draw_circle.center = [px, py];
 			}
 
-			// Drawing state means second click. Time to draw the rect.
+			// Drawing state means second click. Time to draw the circle.
 			else if (current_state == 'drawing') {
 				// Find the radius based from origin to this second point.
 				let radius = get_distance(origin_x, origin_y, px, py);
 
-				// We're not going to add all four points, but just the origin and the extent.
+				// Add just the origin and the radius.
 				tool_functions.draw_circle.radius = radius;
 
 				// Reset the cursor layer to get rid of the guide line
@@ -2358,7 +2387,7 @@ const tool_functions = {
 		},
 		// ondblclick: function(event) {
 		// }, 
-		// When we see a right click, we need to cancel the rectangle.
+		// When we see a right click, we need to cancel the circle.
 		onrightclick: function(event) {
 			debug(`draw_circle right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 
@@ -2515,7 +2544,7 @@ const tool_functions = {
 				draw_polyline(liveContext, tool_functions.draw_polygon.points);
 
 				// Draw the temporary line for current segment
-				bresenhamLine(liveContext, origin_x, origin_y, px, py);
+				draw_line(liveContext, origin_x, origin_y, px, py);
 				set_color(virtual_canvas.get_color(), liveContext, 1);
 			}
 
@@ -2697,10 +2726,10 @@ const tool_functions = {
 				set_color(temp_color, liveContext, 1);
 				// Set XOR to true when drawing these lines. Ensures they will 
 				// always be visible over the area we are tracing.
-				bresenhamLine(liveContext, origin_x, origin_y, px, origin_y, true);
-				bresenhamLine(liveContext, px, origin_y, px, py, true);
-				bresenhamLine(liveContext, px, py, origin_x, py, true);
-				bresenhamLine(liveContext, origin_x, py, origin_x, origin_y, true);
+				draw_line(liveContext, origin_x, origin_y, px, origin_y, true);
+				draw_line(liveContext, px, origin_y, px, py, true);
+				draw_line(liveContext, px, py, origin_x, py, true);
+				draw_line(liveContext, origin_x, py, origin_x, origin_y, true);
 				set_color(orig_color, liveContext, 1);
 			}
 
@@ -2932,9 +2961,7 @@ for (let elem of resolutions) {
 }
 
 
-
 document.querySelector('#show-overlay').addEventListener('click', function(event) {
-
 	const show_overlay_flag = this.checked;
 
 	if (show_overlay_flag == true || show_overlay_flag == 'true') {
@@ -2943,15 +2970,7 @@ document.querySelector('#show-overlay').addEventListener('click', function(event
 	else {
 		document.querySelector('#canvas-overlay').classList.add('hidden');			
 	}
-
 });
-
-
-
-
-
-
-
 
 
 
@@ -2968,9 +2987,7 @@ function change_palette_color(ctx, current_color_index, new_color_array) {
 
 	// // NOT SURE IF THIS IS STILL NECESSARY
 	// ctx.fillStyle = new_color_str;
-
 }
-
 
 
 function atari_to_rgb(color_array) {
@@ -2979,7 +2996,6 @@ function atari_to_rgb(color_array) {
 
 
 function set_color(color_index, ctx, opacity=1) {
-
 	const color_rgb = virtual_canvas.get_rgb_palette_color(color_index);
 
 	debug(`set_color()  |  Index: ${color_index}  |  Color: ${color_rgb}`);
@@ -2988,11 +3004,36 @@ function set_color(color_index, ctx, opacity=1) {
 }
 
 
-
 function get_distance(x1, y1, x2, y2) {
 	let dx = x2 - x1;
 	let dy = y2 - y1;
 	return Math.round(Math.sqrt(dx * dx + dy * dy));
+}
+
+// =========================================
+// FUNCTIONS FOR DRAWING GRAPHICS PRIMITIVES
+// =========================================
+//
+// set_pixel and fill_pixel are the lower-level functions
+// that actually draw on the HTML canvas. 
+//
+// These graphics functions (draw_circle, etc) are higher-level.
+// They pass the provided parameters to the equivalent VDI functions,
+// which return necessary points computed for drawing the shape.
+// These points are then passed to draw_points(), which
+// hands them off to either fill_pixel or set_pixel
+// depending on what's needed.
+
+
+// This is the low-level function which actually draws on the HTML canvas.
+function set_pixel(ctx, x, y, idx=null) {
+	if (idx == null) { idx = virtual_canvas.get_color(); }
+	if (ctx == 'virtual') {
+		virtual_canvas.set_pixel(x, y, idx);
+	}
+	else {
+		ctx.fillRect(x, y, 1, 1);
+	}
 }
 
 
@@ -3017,6 +3058,15 @@ function fill_pixel(ctx, x, y) {
 
 	// debug(`fill_pixel | px: ${px}, py: ${py}`);
 
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NEED TO DEBUG NEGATIVE PIXELS IN PATTERN ARRAY
+	// Happens when you draw a shape that extends offscreen
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	if (current_pattern.array[py][px] === undefined) {
+		// console.log('fill_pixel');
+		// console.log(px, py);
+		// console.log(current_pattern.array[py][px]);		
+	}
 	if (current_pattern.array[py][px] == 1) {
 		set_pixel(ctx, x, y);
 	}
@@ -3032,83 +3082,14 @@ function fill_pixel(ctx, x, y) {
 			// pass
 		}
 	}
-
-
 }
 
 
-function set_pixel(ctx, x, y, idx=null) {
-	if (idx == null) { idx = virtual_canvas.get_color(); }
-	if (ctx == 'virtual') {
-		virtual_canvas.set_pixel(x, y, idx);
-	}
-	else {
-		ctx.fillRect(x, y, 1, 1);
-	}
-}
-
-
-
-
-
-function draw_polyline(ctx, points) {
-	if (points.length > 1) {
-		for (let i=1; i<points.length; i++) {
-			bresenhamLine(
-				ctx,
-				points[i-1][0],
-				points[i-1][1],
-				points[i][0],
-				points[i][1]
-			);
-		}
-	}
-}
-
-
-
-
-// 2024: Updated to reflect Bresenham changes below.
-function getBresenhamLinePixels(ctx, x0, y0, x1, y1) {
-	var points = [];
-	var dx = Math.abs(x1-x0);
-	var dy = Math.abs(y1-y0) * -1;
-	var sx = (x0 < x1) ? 1 : -1;
-	var sy = (y0 < y1) ? 1 : -1;
-	var err = dx+dy;
-
-	while(true) {
-		points.push([x0,y0]);
-
-		if ((x0==x1) && (y0==y1)) { break };
-		var e2 = 2*err;
-		if (e2 >= dy) { err += dy; x0 += sx; }
-		if (e2 <= dx) { err += dx; y0 += sy; }
-	}
-
-	return points;
-}
-
-
-// Originally I used a slightly different version of the Bresebham algorithm
-// which I later learned yielded slightly different results than the Atari ST.
-// The source of that original algorithm MIGHT have been this, but I can't be certain:
-//     https://squeakyspacebar.github.io/2017/07/12/Procedural-Map-Generation-With-Voronoi-Diagrams.html#rendering-the-diagram
-// The first time I used the snippet was in `ripscrip-bresenham-test.js` in Feb 2018,
-// followed a few months later by use in my "Trump Approval" BBS door:
-// https://twitter.com/Kirkman/status/1032112707133157376
-
-// CORRECT VERSION OF BRESENHAM
-function bresenhamLine(ctx, x0, y0, x1, y1, xor=false) {
-	var dx = Math.abs(x1-x0);
-	var dy = Math.abs(y1-y0) * -1;
-	var sx = (x0 < x1) ? 1 : -1;
-	var sy = (y0 < y1) ? 1 : -1;
-	var err = dx+dy;
-
-	while(true) {
-		let idx = null;
-
+// This function receives an array of points and plots them all.
+// It supports an xor mode specifically for producing "preview" lines
+// while the user is drawing lines, shapes, etc.
+function draw_points(ctx, points, xor=false, ignore_patterns=false) {
+	for (point of points) {
 		if (xor == true) {
 			// We need to create a mask to keep only the lowest 2 or 4 bits of the result.
 			// This will effectively limit it an unsigned 2-bit or 4-bit integer, which
@@ -3124,120 +3105,69 @@ function bresenhamLine(ctx, x0, y0, x1, y1, xor=false) {
 			// Apply the bit mask, and get correct index.
 			idx = (~ virtual_canvas.get_pixel(x0, y0)) & bitmask;
 			set_color(idx, ctx);
+			// Call set_pixel directly with the needed color value.
+			set_pixel(ctx, point[0], point[1], idx);
 		}
-
-
-		set_pixel(ctx, x0, y0, idx);
-
-		if ((x0==x1) && (y0==y1)) { break };
-		var e2 = 2*err;
-		if (e2 >= dy) { err += dy; x0 += sx; }
-		if (e2 <= dx) { err += dx; y0 += sy; }
-	}
-}
-
-
-// Temporary wrappers for circle functions until I can write proper ones.
-function draw_circle(ctx, xm, ym, r) {
-	bresenhamCircle(ctx, xm, ym, r);	
-}
-
-function fill_circle(ctx, xm, ym, r) {
-	bresenhamCircle(ctx, xm, ym, r);	
-}
-
-
-function bresenhamCircle(ctx, xm, ym, r) {
-	var x = -r, y = 0, err = 2-2*r;
-	while (x<0) {
-		set_pixel(ctx, xm-x, ym+y); /*   I. Quadrant */
-		set_pixel(ctx, xm-y, ym-x); /*  II. Quadrant */
-		set_pixel(ctx, xm+x, ym-y); /* III. Quadrant */
-		set_pixel(ctx, xm+y, ym+x); /*  IV. Quadrant */
-		r = err;
-		if (r <= y) {
-			err += ++y*2+1;           /* e_xy+e_y < 0 */
+		// For drawing borders, etc, we need to ignore patterns.
+		// So we'll use standard set_pixel, rather than the
+		// pattern-aware fill_pixel.
+		else if (ignore_patterns == true) {
+			set_pixel(ctx, point[0], point[1]);
 		}
-		if (r > x || err > y) {
-			err += ++x*2+1; /* e_xy+e_x > 0 or no 2nd y-step */
+		// If we're not in xor mode or ignoring patterns, then draw normally.
+		// The fill_pixel wrapper accounts for patterns and checks
+		// whether a given pixel should be drawn or left hollow.
+		else {
+			fill_pixel(ctx, point[0], point[1]);
 		}
 	}
 }
 
 
+function fill_rect(ctx, corners) {
+	const x0 = Math.min(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
+	const x1 = Math.max(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
 
+	const y0 = Math.min(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
+	const y1 = Math.max(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
 
-function plotEllipse(ctx, xm, ym, a, b) {
-	var x = -a, y = 0;           /* II. quadrant from bottom left to top right */
-	var e2 = b*b, err = x*(2*e2+x)+e2;         /* error of 1.step */
-
-	while (x <= 0) {
-		set_pixel(ctx, xm-x, ym+y);                                 /*   I. Quadrant */
-		set_pixel(ctx, xm+x, ym+y);                                 /*  II. Quadrant */
-		set_pixel(ctx, xm+x, ym-y);                                 /* III. Quadrant */
-		set_pixel(ctx, xm-x, ym-y);                                 /*  IV. Quadrant */
-		e2 = 2*err;
-		if (e2 >= (x*2+1)*b*b)                           /* e_xy+e_x > 0 */
-			err += (++x*2+1)*b*b;
-		if (e2 <= (y*2+1)*a*a)                           /* e_xy+e_y < 0 */
-			err += (++y*2+1)*a*a;
-	}
-
-	while (y++ < b) {                  /* too early stop of flat ellipses a=1, */
-		set_pixel(ctx, xm, ym+y);                        /* -> finish tip of ellipse */
-		set_pixel(ctx, xm, ym-y);
+	for (let y=y0; y<y1+1; y++) {
+		for (let x=x0; x<x1+1; x++) {
+			fill_pixel(ctx, x, y);
+		}
 	}
 }
 
 
+function draw_line(ctx, x0, y0, x1, y1, xor=false) {
+	let idx = null;
+	const out_points = abline(x0, y0, x1, y1);
+	draw_points(ctx, out_points);
+}
 
 
-function bresenhamBezierCurve(ctx, x0, y0, x1, y1, x2, y2) {                            
-	var sx = x2-x1, sy = y2-y1;
-	var xx = x0-x1, yy = y0-y1, xy;         /* relative values for checks */
-	var dx, dy, err, cur = xx*sy-yy*sx;                    /* curvature */
-
-	assert(xx*sx <= 0 && yy*sy <= 0);  /* sign of gradient must not change */
-
-	if (sx*sx+sy*sy > xx*xx+yy*yy) { /* begin with longer part */ 
-		x2 = x0; x0 = sx+x1; y2 = y0; y0 = sy+y1; cur = -cur;  /* swap P0 P2 */
-	}  
-	if (cur != 0) {                                    /* no straight line */
-		xx += sx; xx *= sx = x0 < x2 ? 1 : -1;           /* x step direction */
-		yy += sy; yy *= sy = y0 < y2 ? 1 : -1;           /* y step direction */
-		xy = 2*xx*yy; xx *= xx; yy *= yy;          /* differences 2nd degree */
-		if (cur*sx*sy < 0) {                           /* negated curvature? */
-			xx = -xx; yy = -yy; xy = -xy; cur = -cur;
-		}
-		dx = 4.0*sy*cur*(x1-x0)+xx-xy;             /* differences 1st degree */
-		dy = 4.0*sx*cur*(y0-y1)+yy-xy;
-		xx += xx; yy += yy; err = dx+dy+xy;                /* error 1st step */    
-		while (dy < dx ) {                              
-			set_pixel(ctx, x0,y0);                                     /* plot curve */
-			if (x0 == x2 && y0 == y2) return;  /* last pixel -> curve finished */
-			y1 = 2*err < dx;                  /* save value for test of y step */
-			if (2*err > dy) { x0 += sx; dx -= xy; err += dy += yy; } /* x step */
-			if (    y1    ) { y0 += sy; dy -= xy; err += dx += xx; } /* y step */
-		};           /* gradient negates -> algorithm fails */
-	}
-	bresenhamLine(ctx, x0, y0, x2, y2);                  /* plot remaining part to end */
-} 
+function draw_polyline(ctx, points) {
+	let out_points = pline(points);
+	draw_points(ctx, out_points);
+}
 
 
+function fill_poly(ctx, points) {
+	const out_points = scanline_fill(points);
+	draw_points(ctx, out_points);
+}
 
 
+function fill_circle(ctx, xc, yc, r) {
+	const points = v_circle(xc, yc, r, 'low', true);
+	draw_points(ctx, points);
+}
 
-// function check_intersect(a, b) {
-// 	// We only need to compare the X-coordinates, so let's flatten to one-dimensional by dropping Y coord.
-// 	const c = a.map(point => point[0]);
-// 	const d = b.map(point => point[0]);
 
-// 	const intersection = c.filter(value => d.includes(value));
-
-// 	if (intersection.length > 0) { return true; }
-
-// 	return false;
-// }
+function draw_circle(ctx, xc, yc, r) {
+	const points = v_circle(xc, yc, r, 'low', false);
+	draw_points(ctx, points, false, true);
+}
 
 
 function draw_insertion_point(ctx, points, ip) {
@@ -3254,8 +3184,7 @@ function draw_insertion_point(ctx, points, ip) {
 	let y0 = src_y;
 	let y1 = src_y + height;
 
-	bresenhamLine(ctx, x, y0, x, y1);
-
+	draw_line(ctx, x, y0, x, y1);
 }
 
 
@@ -3308,6 +3237,7 @@ function write_text_vdi(ctx, text, points) {
 	}
 }
 
+
 function color_idx_to_pixel_val(c) {
 	if (virtual_canvas.get_palette().length == 16) {
 		if (c == 0) { return 0; }
@@ -3337,6 +3267,7 @@ function color_idx_to_pixel_val(c) {
 	}
 	debug(`COULD NOT CONVERT color index ${c} to a pixel value`);
 }
+
 
 function pixel_val_to_color_idx(c) {
 	if (virtual_canvas.get_palette().length == 16) {
@@ -3369,7 +3300,6 @@ function pixel_val_to_color_idx(c) {
 }
 
 
-
 function blit_rect(ctx, corners, dest, mode) {
 	let cw, ch;
 	if (ctx == 'virtual') {
@@ -3389,7 +3319,6 @@ function blit_rect(ctx, corners, dest, mode) {
 
 	const offset_x = dest[0][0] - source_x0;
 	const offset_y = dest[0][1] - source_y0;
-
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
@@ -3505,164 +3434,3 @@ function blit_rect(ctx, corners, dest, mode) {
 }
 
 
-
-
-function fill_rect(ctx, corners) {
-	const x0 = Math.min(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
-	const x1 = Math.max(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
-
-	const y0 = Math.min(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
-	const y1 = Math.max(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
-
-	for (let y=y0; y<y1+1; y++) {
-		for (let x=x0; x<x1+1; x++) {
-			fill_pixel(ctx, x, y);
-		}
-	}
-}
-
-
-// This function generates a filled polygon identical to VDI's `v_fillarea`.
-// My code is based on the `clc_flit()` function in EmuTOS:
-// https://github.com/emutos/emutos/blob/43d5f408babf826244b5c0d693271bc5cfcf0683/vdi/vdi_fill.c#L435
-
-function fill_poly_vdi(ctx, points) {
-	const MAX_VERTICES = 512;
-
-	const y_coords = points.map(function(p) {return p[1]});
-
-	const y_max = Math.max(...y_coords); // start row (bottom)
-	const y_min = Math.min(...y_coords); // end row (top)
-
-	// VDI apparently loops over the scan lines from bottom to top
-	for (let y = y_max; y > y_min; y--) {
-
-		// Set up counter for vector intersections
-		let intersections = 0;
-
-		// Set up a buffer for storing polygon edges that intersect the scan line
-		let edge_buffer = [];
-
-		// Loop over all vertices/points and find the intersections
-		for (let i = 0; i < points.length; i++) {
-			// Account for fact that final point connects to the first point
-			let next_point = i+1;
-			if (next_point == points.length) {
-				next_point = 0;
-			}
-
-			// Convenience variables for endpoints
-			const p1 = points[i];
-			const p2 = points[next_point];
-
-			const y1 = p1[1]; // Get Y-coord of 1st endpoint.
-			const y2 = p2[1]; // Get Y-coord of 2nd endpoint.
-
-			// Get Y delta of current vector/segment/edge
-			const dy = y2 - y1;
-
-			// If the current vector is horizontal (0), ignore it.
-			if (dy) {
-
-				// Calculate deltas of each endpoint with current scan line.
-				const dy1 = y - y1;
-				const dy2 = y - y2;
-
-				// Determine whether the current vector intersects with
-				// the scan line by comparing the Y-deltas we calculated
-				// of the two endpoints from the scan line.
-				//
-				// If both deltas have the same sign, then the line does
-				// not intersect and can be ignored.  The origin for this
-				// test is found in Newman and Sproull.
-				if ((dy1^dy2) < 0) {
-
-					const x1 = p1[0]; // Get X-coord of 1st endpoint.
-					const x2 = p2[0]; // Get X-coord of 2nd endpoint.
-
-					// Calculate X delta of current vector
-					const dx = (x2 - x1) << 1;  // Left shift so we can round by adding 1 below
-
-					// Stop if we have reached the max number of verticies allowed (512)
-					if (intersections >= MAX_VERTICES) {
-						break;
-					}
-
-					intersections++;
-
-					// Add X value for this vector to edge buffer
-					if (dx < 0) {
-						edge_buffer.push(((dy2 * dx / dy + 1) >> 1) + x2);
-					}
-					else {
-						edge_buffer.push(((dy1 * dx / dy + 1) >> 1) + x1);
-					}
-				}
-			}
-		}
-
-
-		// All of the points of intersection have now been found.  If there
-		// were none (or one, which I think is impossible), then there is
-		// nothing more to do.  Otherwise, sort the list of points of
-		// intersection in ascending order.
-		// (The list contains only the x-coordinates of the points.)
-
-		if (intersections < 2) {
-			continue;
-		}
-
-
-		// Sort the X-coordinates, so they are arranged left to right.
-		// There are almost always exactly 2, except for weird shapes.
-		edge_buffer = edge_buffer.sort((a,b) => a-b);
-
-		// EmuTOS testers found that in Atari TOS the fill area always *includes*
-		// the left and right perimeter (for those functions that allow the
-		// perimeter to be drawn separately, it is drawn on top of the edge
-		// pixels).  The routine below conforms to Atari TOS.
-
-		// Loop through all edges in pairs, filling the pixels in between.
-		let i = intersections / 2;
-		let j = 0;
-		while(i--) {
-			/* grab a pair of endpoints */
-			x1 = edge_buffer[j];
-			x2 = edge_buffer[j+1];
-
-			j = j + 2
-
-			// ===============================================
-			// As far as I can tell, I don't need any of this
-			// clipping code.
-			// ===============================================
-
-			// // Handle clipping
-			// if (attr->clip) {
-			// 	if (x1 < clipper->xmn_clip) {
-			// 		if (x2 < clipper->xmn_clip)
-			// 			continue;           /* entire segment clipped left */
-			// 		x1 = clipper->xmn_clip; /* clip left end of line */
-			// 	}
-			//
-			// 	if (x2 > clipper->xmx_clip) {
-			// 		if (x1 > clipper->xmx_clip)
-			// 			continue;           /* entire segment clipped right */
-			// 		x2 = clipper->xmx_clip; /* clip right end of line */
-			// 	}
-			// }
-			// rect.x1 = x1;
-			// rect.y1 = y;
-			// rect.x2 = x2;
-			// rect.y2 = y;
-			//
-			// // Rectangle fill routine draws horizontal line
-			// draw_rect_common(attr, &rect);
-
-			// Fill in all pixels horizontally from (x1, y) to (x2, y)
-			for (k=x1; k<=x2; k++) {
-				fill_pixel(ctx, k, y);
-			}
-		}
-	}
-}

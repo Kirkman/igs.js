@@ -59,6 +59,9 @@ const resolutions = [
 		'id': 0,
 		'width': 320,
 		'height': 200,
+		// xsize/ysize are for calculating aspect ratio
+		'xsize': 338,
+		'ysize': 372,
 		'palettes': [
 			{
 				'name': 'Atari ST default',
@@ -140,6 +143,9 @@ const resolutions = [
 		'id': 1,
 		'width': 640,
 		'height': 200,
+		// xsize/ysize are for calculating aspect ratio
+		'xsize': 169,
+		'ysize': 372,
 		'palettes': [
 			{
 				'name': 'Atari ST default',
@@ -150,6 +156,29 @@ const resolutions = [
 					[0,0,0], // black
 					[7,0,0], // red
 					[0,7,0], // green
+				]
+			}
+		]
+	},
+	{
+		'name': 'Atari ST high (640x400, 2 colors)',
+		'slug': 'atari_st_high',
+		'system': 'atari_st',
+		'mode': 'high',
+		'id': 2,
+		'width': 640,
+		'height': 400,
+		// xsize/ysize are for calculating aspect ratio
+		'xsize': 372,
+		'ysize': 372,
+		'palettes': [
+			{
+				'name': 'Atari ST default',
+				'slug': 'atari_st_2_default',
+				'id': 0,
+				'colors': [
+					[7,7,7], // white
+					[0,0,0], // black
 				]
 			}
 		]
