@@ -151,10 +151,19 @@ a {
 	margin: 1rem;
 }
 
+.pane-left h2 {
+	margin-bottom: 0.5rem;
+}
+
 /* Hide the options for now */
 /*.pane-main .option-set {
 	display: none;
 }*/
+
+/* Hide the fill-border option for now. I just want it to always be set to true to preserve outline shapes. */
+.option-set.option-fill-border {
+	display: none;
+}
 
 
 .pane.disabled {
