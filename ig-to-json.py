@@ -303,6 +303,20 @@ def main(input_file=None, output_file=None):
 			})
 			continue
 
+
+		# Draw circle/disc
+		if cmd == 'O':
+			out_cmds.append({
+				'action': 'draw_circle',
+				'params': {
+					'color': fill_color,
+					'center': [out_params[0], out_params[1]],
+					'radius': out_params[2],
+				}
+			})
+			continue			
+
+
 	out_obj = {'history': out_cmds}
 	out_str = json.dumps(out_obj).replace('{"action"','\n{"action"')
 
@@ -321,7 +335,6 @@ if __name__ == "__main__":
 	parser.add_argument(
 		'input',
 		type=str,
-		nargs='?',
 		help='Filename and path for input IG file. REQUIRED.'
 	)
 
