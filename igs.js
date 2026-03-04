@@ -1723,6 +1723,11 @@ const history = {
 						cmd_str += `G#W>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${sanitized_text}@\r\n`;
 					}
 					break;
+
+				// Export unsupported commands, so they aren't lost by translation.
+				case 'other_igs_cmd':
+					cmd_str += `G#${cmd.cmd}>${cmd.param_str}:\r\n`;
+					break;
 			}
 		}
 
@@ -1825,8 +1830,15 @@ const renderer = {
 				this.cls();
 			}
 		}
-		// End with current command
-		renderer[history.present.action](history.present.params);
+
+		// End with current command -- if it's not an unsupported command.
+		if (history.present.action == 'other_igs_cmd') {
+			debug(`   - skipping IG cmd ${history.present.action.cmd}, which is unsupported`);
+		}
+		else {
+			debug(`   - ${history.present.action}`);
+			renderer[history.present.action](history.present.params);
+		}
 
 		// We're only going to do this once at the end of the render.
 		virtual_canvas.draw(context);
@@ -1868,6 +1880,7 @@ const renderer = {
 	},
 	change_pattern: function(params) {
 		// Manually trigger a click on the pattern we're choosing so it will be selected in the interface
+		console.log(params)
 		document.querySelector('.widget-patterns select').value = fill_patterns.find(d => d.slug == params.pattern).id;
 		document.querySelector('.widget-patterns select').dispatchEvent(new Event('change'));
 
@@ -1891,7 +1904,6 @@ const renderer = {
 			// Polymarkers don't need to respect fill patterns.
 			set_pixel('virtual', point[0], point[1]);
 		}
-
 	},
 	draw_line: function(params) {
 		this.update_tool('draw_line');
