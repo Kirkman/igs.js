@@ -658,7 +658,7 @@ const fill_patterns = [
 
 
 
-const fonts = [
+let fonts = [
 	{
 		"id": 0,
 		"name": "6x6 system font",

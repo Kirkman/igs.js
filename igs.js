@@ -126,7 +126,20 @@ let virtual_canvas = {
 }
 
 
+// Augment the original system font set -- sizes (8, 9, 10) --
+// by doubling them to produce sizes 16, 18, and 20.
 
+// Produce double-size version.
+let fonts2 = fonts.map(font => scale_font_def(font, 2));
+
+// Combine the two font arrays
+fonts = fonts.concat(fonts2);
+
+// Dynamically update all the names
+fonts = fonts.map(font => ({
+	...font,
+	name: `${font.point} pt system (${font.max_cell_width}x${font.form_height})`
+}));
 
 const display = document.querySelector('.mouse-target');
 
@@ -257,6 +270,64 @@ function fix_history(old_history) {
 	}
 	return new_history;
 }
+
+// This function takes a bitmap font glyph array and scales it up by an integer factor.
+function scale_font_glyph(glyph, scale=2) {
+	if (!Number.isInteger(scale) || scale < 1) {
+		throw new Error('scale must be a positive integer');
+	}
+
+	const scaled = [];
+
+	for (let y = 0; y < glyph.length; y++) {
+		const row = glyph[y];
+		const newRow = [];
+
+		// Horizontal scaling
+		for (let x = 0; x < row.length; x++) {
+			const px = row[x];
+			for (let i = 0; i < scale; i++) {
+				newRow.push(px);
+			}
+		}
+
+		// Vertical scaling
+		for (let i = 0; i < scale; i++) {
+			scaled.push([...newRow]);
+		}
+	}
+
+	return scaled;
+}
+
+// This function takes a font definition file and scales it up by an integer factor.
+function scale_font_def(font, scale=2) {
+	return {
+		...font,
+
+		// There are only three fonts, so each ID increments by multiples of 3
+		// depending on the scale factor.
+		// e.g. 0 (1x) -> 3 (2x) -> 6 (3x) ... 1 (1x) -> 4 (2x) -> 7 (3x)
+		id: font.id + (3 * (scale-1)),
+
+		// All other values simple multiply by the scale factor.
+		point: font.point * scale,
+		top: font.top * scale,
+		ascent: font.ascent * scale,
+		half: font.half * scale,
+		descent: font.descent * scale,
+		bottom: font.bottom * scale,
+		form_height: font.form_height * scale,
+		max_char_width: font.max_char_width * scale,
+		max_cell_width: font.max_cell_width * scale,
+
+		// Call the scale_font_glyph() function for each glyph.
+		characters: font.characters.map(glyph => scale_font_glyph(glyph, scale))
+	};
+}
+
+
+
 
 
 const button_load = document.querySelector('.load-json');
@@ -1742,8 +1813,13 @@ const renderer = {
 		for (let i=0; i<history.past.length; i++) {
 			const cmd = history.past[i];
 
-			debug(`   - ${cmd.action}`);
-			renderer[cmd.action](cmd.params);
+			if (cmd.action == 'other_igs_cmd') {
+				debug(`   - skipping IG cmd ${cmd.cmd}, which is unsupported`);
+			}
+			else {
+				debug(`   - ${cmd.action}`);
+				renderer[cmd.action](cmd.params);
+			}
 
 			if (i == 0 && cmd.action == 'set_resolution') {
 				this.cls();
@@ -1927,7 +2003,6 @@ const renderer = {
 		// Manually trigger a click on the pattern we're choosing so it will be selected in the interface
 		document.querySelector('.widget-fonts select').value = fonts.find(d => d.point == params.font).id;
 		document.querySelector('.widget-fonts select').dispatchEvent(new Event('change'));
-
 		// TK TK TK: effects and rotation
 	},
 	write_text: function(params) {
@@ -2896,6 +2971,7 @@ const tool_functions = {
 					action: 'write_text',
 					params: {
 						color: virtual_canvas.get_color(),
+						font: current_font.point, // this is also in change_font, but that will go away later.
 						effect: 0, // hard-coded for now
 						rotation: 0, // hard-coded for now
 						text: tool_functions.write_text.text,
