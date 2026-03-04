@@ -23,6 +23,9 @@ def main(input_file=None, output_file=None):
 	line_color = None
 	fill_color = None
 	text_color = None
+	text_font = None
+	text_effect = None
+	text_rotation = None
 	pattern = None
 	border_flag = None
 
@@ -55,18 +58,18 @@ def main(input_file=None, output_file=None):
 
 		# THIS FIRST SET OF COMMANDS ARE ADDED AUTOMATICALLY WHEN EXPORTING FROM JOSHDRAW, SO WE DON'T NEED TO PARSE.
 
-		# Initialize. Ignore for now.
-		if cmd == 'I':
-			continue
-		# Screen clear. Ignore for now
-		if cmd == 's':
-			continue
-		# Cursor. Ignore for now
-		if cmd == 'k':
-			continue
-		# Line/marker type. Ignore for now
-		if cmd == 'T':
-			continue
+		# # Initialize. Ignore for now.
+		# if cmd == 'I':
+		# 	continue
+		# # Screen clear. Ignore for now
+		# if cmd == 's':
+		# 	continue
+		# # Cursor. Ignore for now
+		# if cmd == 'k':
+		# 	continue
+		# # Line/marker type. Ignore for now
+		# if cmd == 'T':
+		# 	continue
 
 		# NEED TO PARSE THIS REMAINING SUBSET OF IGS COMMANDS.
 
@@ -119,8 +122,8 @@ def main(input_file=None, output_file=None):
 						'border_flag': this_brd_flg,
 					}
 				})
-				pattern == this_pat_slug
-				border_flag == this_brd_flg
+				pattern = this_pat_slug
+				border_flag = this_brd_flg
 			continue
 
 		# Set color
@@ -157,8 +160,6 @@ def main(input_file=None, output_file=None):
 					'color': pen_id,
 				}
 			})
-
-
 			continue
 
 
@@ -314,7 +315,93 @@ def main(input_file=None, output_file=None):
 					'radius': out_params[2],
 				}
 			})
-			continue			
+			continue
+
+
+
+		# Draw ellipse
+		if cmd == 'Q':
+			out_cmds.append({
+				'action': 'draw_ellipse',
+				'params': {
+					'color': fill_color,
+					'center': [out_params[0], out_params[1]],
+					'x_radius': out_params[2],
+					'y_radius': out_params[3],
+				}
+			})
+			continue
+
+
+		# Change font / text effects
+		if cmd == 'E':
+			text_effect = out_params[0]
+			text_font = out_params[1]
+			text_rotation = out_params[2]
+
+			out_cmds.append({
+				'action': 'change_font',
+				'params': {
+					'font': text_font,
+					'effect': text_effect,
+					'rotation': text_rotation,
+				}
+			})
+			continue
+
+
+		# Write text
+		if cmd == 'W':
+			out_cmds.append({
+				'action': 'write_text',
+				'params': {
+					'color': text_color,
+					'font': text_font,
+					'effect': text_effect,
+					'rotation': text_rotation,
+					'text': out_params[2],
+					'points': [[out_params[0], out_params[1]]],
+				}
+			})
+			continue
+
+
+
+		# Grab / blit
+		if cmd == 'G':
+			blit_type = out_params[0]
+			blit_mode = out_params[1]
+			# Right now I'm only supporting blit type 0 (screen-to-screen)
+			# But in the future we'll support the others.
+			if blit_type == 0:
+				coord_params = iter(out_params[2:])
+				coord_pairs = [[x, next(coord_params)] for x in coord_params]
+				out_cmds.append({
+					'action': 'blit',
+					'params': {
+						'type': blit_type,
+						'mode': blit_mode,
+						'source_points': [coord_pairs[0]],
+						'dest_points': coord_pairs[1:]
+					}
+				})
+				continue
+			else:
+				pass
+
+
+		# DEFAULT CASE
+		# If we get here, it's a command not supported by JoshDraw.
+		# But let's preserve it for future use.
+		out_cmd = {
+			'action': 'other_igs_cmd',
+			'cmd': cmd,
+			'params': out_params,
+			'param_str': params,
+		}
+
+		out_cmds.append(out_cmd)
+
 
 
 	out_obj = {'history': out_cmds}
