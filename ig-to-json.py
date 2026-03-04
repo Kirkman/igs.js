@@ -18,11 +18,11 @@ def noneToZero(value):
 def main(input_file=None, output_file=None):
 	ig_text = None
 
-	#Variables to track state of colors, patterns, etc, to avoid duplicating the commands.
-	marker_color = None
-	line_color = None
-	fill_color = None
-	text_color = None
+	# Variables to track state of colors, patterns, etc, to avoid duplicating the commands.
+	marker_color = 1
+	line_color = 1
+	fill_color = 1
+	text_color = 1
 	text_font = None
 	text_effect = None
 	text_rotation = None
@@ -51,7 +51,22 @@ def main(input_file=None, output_file=None):
 
 		cmd = c[0]
 		params = c[1]
-		out_params = [int(x) if x.isdigit() else x for x in params.split(',')]
+		# The "write_text" command allows commas within the third parameter,
+		# so it needs special handling
+		if cmd == 'W':
+			param_match = re.match(r'^(\d+),(\d+),(.+?)$', params)
+			if param_match:
+				out_params = [
+					int(param_match.group(1)),
+					int(param_match.group(2)),
+					param_match.group(3),
+				]
+			else:
+				print('COULD NOT PARSE WRITE_STRING COMMAND:')
+				print(params)
+				exit()
+		else:
+			out_params = [int(x) if x.isdigit() else x for x in params.split(',')]
 
 		print(f'  - Cmd: {cmd}')
 
@@ -107,12 +122,15 @@ def main(input_file=None, output_file=None):
 		if cmd == 'A':
 			this_pat_type = out_params[0]
 			this_pat_num = out_params[1]
-			if this_pat_type in [0, 1] and this_pat_num == 0:
+
+			# If the pattern type is hollow or solid,
+			# then any pattern number is allowed in IGS.
+			# We'll manually set them to 1 to avoid problems.
+			if this_pat_type in [0, 1] and this_pat_num != 1:
 				this_pat_num = 1
 
 			this_pat_slug = f'{this_pat_type},{this_pat_num}'
 			this_brd_flg = out_params[2]
-
 
 			if pattern != this_pat_slug or border_flag != this_brd_flg:
 				out_cmds.append({
