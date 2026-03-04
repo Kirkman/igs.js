@@ -3148,6 +3148,9 @@ function get_distance(x1, y1, x2, y2) {
 
 // This is the low-level function which actually draws on the HTML canvas.
 function set_pixel(ctx, x, y, idx=null) {
+	// Ignore off-canvas pixels.
+	if (x < 0 || y < 0 || x >= virtual_canvas.width || y >= virtual_canvas.height) { return; }
+
 	if (idx == null) { idx = virtual_canvas.get_color(); }
 	if (ctx == 'virtual') {
 		virtual_canvas.set_pixel(x, y, idx);
@@ -3163,31 +3166,20 @@ function set_pixel(ctx, x, y, idx=null) {
 // Also checks drawing mode to check if "empty" pattern pixels 
 // will render as color 0, or as transparent.
 function fill_pixel(ctx, x, y) {
+	// Ignore off-canvas pixels.
+	if (x < 0 || y < 0 || x >= virtual_canvas.width || y >= virtual_canvas.height) { return; }
+
 	// debug(`------------------------------`);
 	// debug(`fill_pixel | x: ${x}, y: ${y}`);
-	let px, py;
 	let end_idx = current_pattern.array.length;
 
-	if (x >= end_idx) {
-		px = (x % end_idx);
-	}
-	else { px = x; }
-	if (y >= end_idx) {
-		py = (y % end_idx);
-	}
-	else { py = y; }
+	// The actual pattern data is only 16x16. 
+	// These modulos let us check pixels that fall outside that range (e.g. negative, or > 16)
+	let px = ((x % end_idx) + end_idx) % end_idx;
+	let py = ((y % end_idx) + end_idx) % end_idx;
 
 	// debug(`fill_pixel | px: ${px}, py: ${py}`);
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NEED TO DEBUG NEGATIVE PIXELS IN PATTERN ARRAY
-	// Happens when you draw a shape that extends offscreen
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	if (current_pattern.array[py][px] === undefined) {
-		// console.log('fill_pixel');
-		// console.log(px, py);
-		// console.log(current_pattern.array[py][px]);		
-	}
 	if (current_pattern.array[py][px] == 1) {
 		set_pixel(ctx, x, y);
 	}
