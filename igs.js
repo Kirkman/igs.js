@@ -1510,12 +1510,12 @@ const history = {
 			// Get the initial resolution command
 			const init = full_history.shift();
 			cmd_str += `G#I>0:R>${init.params.resolution},${init.params.sys_palette_flag}:s>5:k>0:T>1,1,1:\r\n`;
-
 			// Manually set the colors, because when switching from medium to low res, 
 			// the Atari low default does NOT get set automatically.
 			if (init.params.sys_palette_flag == 1 || init.params.sys_palette_flag == 2) {
-				for (let c=0; c<resolutions[0].palettes[init.params.palette_id].colors.length; c++) {
-					let color = resolutions[0].palettes[init.params.palette_id].colors[c];
+				const res_colors = resolutions[init.params.resolution].palettes[init.params.palette_id].colors
+				for (let c=0; c<res_colors.length; c++) {
+					let color = res_colors[c];
 					cmd_str += `G#S>${c},${color[0]},${color[1]},${color[2]}:\r\n`;
 				}
 			}
@@ -3415,19 +3415,28 @@ function fill_rect(ctx, points, xor=false) {
 
 
 function draw_roundrect(ctx, points, xor=false) {
-	const x0 = points[0][0], x1 = points[1][0];
-	const y0 = points[0][1], y1 = points[0][1];
+	const x0 = Math.min(points[0][0], points[1][0]);
+	const x1 = Math.max(points[0][0], points[1][0]);
+	const y0 = Math.min(points[0][1], points[1][1]);
+	const y1 = Math.max(points[0][1], points[1][1]);
+
 	const user_resolution = get_res_from_history();
+
 	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution, false);
-	// This a line, so set `ignore_patterns` to true
+
 	draw_points(ctx, out_points, xor, true);
 }
 
 function fill_roundrect(ctx, points, xor=false) {
-	const x0 = points[0][0], x1 = points[1][0];
-	const y0 = points[0][1], y1 = points[0][1];
+	const x0 = Math.min(points[0][0], points[1][0]);
+	const x1 = Math.max(points[0][0], points[1][0]);
+	const y0 = Math.min(points[0][1], points[1][1]);
+	const y1 = Math.max(points[0][1], points[1][1]);
+
 	const user_resolution = get_res_from_history();
+
 	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution, true);
+
 	draw_points(ctx, out_points, xor);
 }
 
