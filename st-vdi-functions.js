@@ -6,7 +6,7 @@
 //
 // Sources: monout.c, isin.c, gsxasm1.S from https://github.com/th-otto/tos1x/
 //
-// These ports were produced with Claude AI assistance.
+// Some of this code was produced with Claude AI assistance.
 // =============================================================================
 
 const MAX_ARC_CT = 128;

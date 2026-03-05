@@ -44,7 +44,9 @@ let polygon_start_y = null;
 let virtual_canvas = {
 	width: null,
 	height: null,
-	data: [],
+	data: [], // actual screen memory
+	buffer: [], // temporary screen copy for blitting
+	memory: [], // blit memory, same size as screen
 	palette: [],
 	color: 0,
 	init_data: function(w, h) {
@@ -54,6 +56,8 @@ let virtual_canvas = {
 	},
 	reset_data: function() {
 		this.data = Array(this.height).fill().map(() => Array(this.width).fill(0));
+		this.buffer = Array(this.height).fill().map(() => Array(this.width).fill(0));
+		this.memory = Array(this.height).fill().map(() => Array(this.width).fill(0));
 	},
 	set_palette: function(pal) {
 		this.palette = [...pal];
@@ -87,7 +91,27 @@ let virtual_canvas = {
 	},
 	get_data: function() {
 		return this.data.flat();
-		// return this.data.reduce((xs, ys) => xs.concat(ys));
+	},
+	// Copy the virtual screen or the blit memory to a temporary buffer before blitting
+	copy_to_buffer: function(src) {
+		if (src == 'virtual') {
+			this.buffer = this.data.map(row => row.slice());
+		}
+		else if (src == 'memory') {
+			this.buffer = this.memory.map(row => row.slice());
+		}
+	},
+	reset_buffer: function() {
+		this.buffer = Array(this.height).fill().map(() => Array(this.width).fill(0));
+	},
+	get_buffer_pixel: function(x, y) {
+		return this.buffer[y][x];
+	},
+	set_memory_pixel: function(x, y, idx) {
+		this.memory[y][x] = idx;
+	},
+	get_memory_pixel: function(x, y) {
+		return this.memory[y][x];
 	},
 	draw: function(ctx) {
 		const w = ctx.canvas.width;
@@ -2028,8 +2052,8 @@ const renderer = {
 			[params.source_points[0][0], params.source_points[1][1]], 
 		];
 
-		blit_rect('virtual', source_corners, params.dest_points, params.mode);
-
+		blit_read('virtual');
+		blit_write('virtual', source_corners, params.dest_points, params.mode);
 	},
 
 
@@ -2870,9 +2894,11 @@ const tool_functions = {
 
 				// Add extent. (We're not going to add all four source_points of the rect, but just the origin and extent.)
 				tool_functions.blit.source_points.push([px, py]);
-
 				tool_functions.blit.source_width = px - origin_x;
 				tool_functions.blit.source_height = py - origin_y;
+
+				// Clone the screen data -- but only once.
+				blit_read('virtual');
 
 				// Reset the cursor layer to get rid of the guide lines
 				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -2998,7 +3024,7 @@ const tool_functions = {
 					[tool_functions.blit.source_points[0][0], tool_functions.blit.source_points[1][1]], 
 				];
 
-				blit_rect(liveContext, source_corners, [[px, py]], tool_functions.blit.mode);
+				blit_write(liveContext, source_corners, [[px, py]], tool_functions.blit.mode);
 
 			}
 
@@ -3626,8 +3652,7 @@ function pixel_val_to_color_idx(c) {
 		else if (c == 11) { return 14; }
 		else if (c ==  13) { return 15; }
 }
-	// THIS IS A GUESS. THE REFERENCE BOOKS ONLY GIVE TABLES FOR 8-bit AND 16-bit PALETTES.
-	// NEED TO DOUBLE-CHECK ON REAL ATARI.
+	// THIS IS AN EDUCATED GUESS. THE REFERENCE BOOKS ONLY GIVE TABLES FOR 8-bit AND 16-bit PALETTES.
 	else if (virtual_canvas.get_palette().length == 4) {
 		if (c == 0) { return 0; }
 		else if (c == 3) { return 1; }
@@ -3638,15 +3663,59 @@ function pixel_val_to_color_idx(c) {
 }
 
 
-function blit_rect(ctx, corners, dest, mode) {
+// Pre-build the logical operation lookup table once
+const LOGICAL_OPS = [
+	(S, D) => 0,           // 0
+	(S, D) => (S & D),     // 1
+	(S, D) => (S & (~D)),  // 2
+	(S, D) => (S),         // 3
+	(S, D) => ((~S) & D),  // 4
+	(S, D) => (D),         // 5
+	(S, D) => (S ^ D),     // 6
+	(S, D) => (S | D),     // 7
+	(S, D) => (~(S | D)),  // 8
+	(S, D) => (~(S ^ D)),  // 9
+	(S, D) => (~D),        // 10
+	(S, D) => (S | (~D)),  // 11
+	(S, D) => (~S),        // 12
+	(S, D) => ((~S) | D),  // 13
+	(S, D) => (~(S & D)),  // 14
+	(S, D) => 1,           // 15
+];
+
+// Clone the source canvas before writing the blit, so we don't overwrite it in place.
+// Breaking this out separately allows to avoid doing it repeatedly on mousemove.
+function blit_read(src_ctx) {
+	// // Snapshot source rect first (aliasing safety)
+	// const src_w = source_x1 - source_x0 + 1;
+	// const src_h = source_y1 - source_y0 + 1;
+	// const snapshot = [];
+	// for (let y = 0; y < src_h; y++) {
+	// 	snapshot.push(virtual_canvas.get_buffer_row(source_y0 + y, source_x0, src_w));
+	// }
+
+	// Clone the contents of the screen to buffer before blitting,
+	// to avoid modifying the source in place during the blit.
+	// (can also clone the blit memory, which I'll need in future)
+	virtual_canvas.copy_to_buffer(src_ctx);
+}
+
+
+// The actual blit process -- read each source and destination pixel,
+// perform logical operation on them, then write the result to destination context.
+// This runs pixel-by-pixel, so it's slow. Could gain some speed by avoiding
+// HTML canvas redraws inside the loop, and instead doing a single full redraw
+// after the loop is finished. That's probably the way to go, but it will require
+// reworking/rethinking ALL of the canvas/drawing functions.
+function blit_write(dest_ctx, corners, dest_pt, mode) {
 	let cw, ch;
-	if (ctx == 'virtual') {
+	if (dest_ctx == 'virtual') {
 		cw = virtual_canvas.width;
 		ch = virtual_canvas.height;
 	}
 	else {
-		cw = ctx.canvas.width;
-		ch = ctx.canvas.height;
+		cw = dest_ctx.canvas.width;
+		ch = dest_ctx.canvas.height;
 	}
 
 	const source_x0 = Math.min(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
@@ -3655,120 +3724,56 @@ function blit_rect(ctx, corners, dest, mode) {
 	const source_y0 = Math.min(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
 	const source_y1 = Math.max(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
 
-	const offset_x = dest[0][0] - source_x0;
-	const offset_y = dest[0][1] - source_y0;
+	const offset_x = dest_pt[0][0] - source_x0;
+	const offset_y = dest_pt[0][1] - source_y0;
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//
-	// THIS IS OKAY FOR NOW, BUT NEED TO REWORK IT TO COPY THE SOURCE
-	// PIXELS TO ANOTHER ARRAY BEFORE WRITING TO DESTINATION
-	// TO AVOID MODIFYING THE SOURCE IN PLACE DURING THE BLIT.
-	//
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// Hoist all invariants out of the loop
+	const op = LOGICAL_OPS[mode];
+	if (!op) throw new Error('COULD NOT PARSE MODE.');
 
-	for (let y=source_y0; y<source_y1+1; y++) {
-		for (let x=source_x0; x<source_x1+1; x++) {
+	// Low resolution, 4-bit mask: 0xF.
+	// Medium resolution, 2-bit mask: 0x3
+	const bitmask = virtual_canvas.get_palette().length === 4 ? 0x3 : 0xF;
+
+	// Iterate over all the pixels, skipping any that are outside the destination bounds
+	for (let y = source_y0; y < source_y1+1; y++) {
+		const dy = y+offset_y;
+		if (dy < 0 || dy >= ch) { continue; }
+
+		for (let x = source_x0; x < source_x1+1; x++) {
 			const dx = x+offset_x;
-			const dy = y+offset_y;
-
-			// Skip to next loop iteration if this destination pixel is not within canvas bounds.
-			if (!(dx > -1 && dx < cw && dy > -1 && dy < ch)) {
-				continue;
-			}
+			if (dx < 0 || dx >= cw) { continue; }
 
 			// Get the source and destination pixels.
 
-			// NOTE: I storing these in virtual_canvas as color indices.
+			// NOTE: I am storing these in virtual_canvas as color indices.
 			// But to properly perform logical operations for the blit, 
 			// I first have to convert the color indices into pixel values. 
-			// Then, after doing the math, I will convert them back.
+			// Then, after doing the math, I convert them back.
 			//
 			// Reference tables here:
 			// https://www.atarimagazines.com/v4n12/ControlGEM.php
 			// https://bitsavers.computerhistory.org/pdf/atari/ST/Atari_ST_GEM_Programming_1986/GEM_0174.pdf
 
-			const S = color_idx_to_pixel_val( virtual_canvas.get_pixel(x, y) );
+			const S = color_idx_to_pixel_val( virtual_canvas.get_buffer_pixel(x, y) );
 			const D = color_idx_to_pixel_val( virtual_canvas.get_pixel(dx, dy) );
 
-			let new_idx = null;
-
-			// We need to create a mask to keep only the lowest 2 or 4 bits of the result.
-			// This will effectively limit it an unsigned 2-bit or 4-bit integer, which
-			// is what we need to get the same result as on the Atari ST.
-			// Whether we use a mask for 2 bits or 4 bits depends on screen resolution.
-			// (JS performs bitwise operations on signed 32-bit integers by default)
-
-			// Low resolution, 4-bit mask
-			let bitmask = 0xF;
-
-			// Medium resolution, 2-bit mask
-			if (virtual_canvas.get_palette().length == 4) { bitmask = 0x3; }
-
-			if (mode == 0) {
-				new_idx = 0;
-			}
-			else if (mode == 1) {
-				new_idx = (S & D) & bitmask;
-			}
-			else if (mode == 2) {
-				new_idx = (S & (~D)) & bitmask;
-			}
-			else if (mode == 3) {
-				new_idx = (S) & bitmask;
-			}
-			else if (mode == 4) {
-				new_idx = ((~S) & D) & bitmask;
-			}
-			else if (mode == 5) {
-				new_idx = (D) & bitmask;
-			}
-			else if (mode == 6) {
-				new_idx = (S ^ D) & bitmask;
-			}
-			else if (mode == 7) {
-				new_idx = (S | D) & bitmask;
-			}
-			else if (mode == 8) {
-				new_idx = (~(S | D)) & bitmask;
-			}
-			else if (mode == 9) {
-				new_idx = (~(S ^ D)) & bitmask;
-			}
-			else if (mode == 10) {
-				new_idx = (~ D) & bitmask;
-			}
-			else if (mode == 11) {
-				new_idx = (S | (~D)) & bitmask;
-			}
-			else if (mode == 12) {
-				new_idx = (~S) & bitmask;
-			}
-			else if (mode == 13) {
-				new_idx = ((~S) | D) & bitmask;
-			}
-			else if (mode == 14) {
-				new_idx = (~(S & D)) & bitmask;
-			}
-			else if (mode == 15) {
-				new_idx = 1;
-			}
-			else {
-				throw new Error('COULD NOT PARSE MODE.')
-			}
-
-			// Now that we've done the math, we need to convert from
-			// pixel values back to color indices.
-			new_idx = pixel_val_to_color_idx(new_idx);
+			// The result of the logical operation needs to be
+			// converted from pixel values back to color indices.
+			const new_idx = pixel_val_to_color_idx(
+				// Perform the logical operation
+				op(S, D) & bitmask
+			);
 
 			// To make the blit rectangle show up on mousemove, 
 			// I have to explicitly set the color here.
-			set_color(new_idx, ctx);
+			set_color(new_idx, dest_ctx);
 
-			set_pixel(ctx, dx, dy, new_idx);
-
+			set_pixel(dest_ctx, dx, dy, new_idx);
 		}
 	}
 
 }
+
 
 
