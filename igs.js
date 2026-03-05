@@ -1880,7 +1880,6 @@ const renderer = {
 	},
 	change_pattern: function(params) {
 		// Manually trigger a click on the pattern we're choosing so it will be selected in the interface
-		console.log(params)
 		document.querySelector('.widget-patterns select').value = fill_patterns.find(d => d.slug == params.pattern).id;
 		document.querySelector('.widget-patterns select').dispatchEvent(new Event('change'));
 

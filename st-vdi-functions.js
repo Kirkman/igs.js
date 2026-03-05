@@ -1,4 +1,4 @@
-	// =============================================================================
+// =============================================================================
 // ATARI ST DRAWING ROUTINES
 // These Javascript functions are based on those in the ST's TOS and VDI,
 // producing lines, circles, and polygons that replicate the unique quirks
@@ -12,7 +12,7 @@
 const MAX_ARC_CT = 128;
 
 // ---------------------------------------------------------------------------
-// SMUL_DIV — Port of gsxasm1.S with 16-bit rounding overflow
+// SMUL_DIV -- Port of gsxasm1.S with 16-bit rounding overflow
 // ---------------------------------------------------------------------------
 function smul_div(m1, m2, d1) {
 	m1 = (m1 << 16 >> 16);
@@ -36,7 +36,7 @@ function smul_div(m1, m2, d1) {
 }
 
 // ---------------------------------------------------------------------------
-// Isin / Icos — Port of isin.c
+// Isin / Icos -- Port of isin.c
 // ---------------------------------------------------------------------------
 const SIN_TBL = new Int16Array([
 	    0,   572,  1144,  1716,  2286,  2856,  3425,  3993,
@@ -94,7 +94,7 @@ function clc_nsteps(xrad, yrad) {
 }
 
 // ---------------------------------------------------------------------------
-// Calc_pts — compute one arc point
+// Calc_pts -- compute one arc point
 // ---------------------------------------------------------------------------
 function calc_pt(angle, xc, yc, xrad, yrad) {
 	const x = smul_div(Icos(angle), xrad, 32767) + xc;
@@ -103,7 +103,7 @@ function calc_pt(angle, xc, yc, xrad, yrad) {
 }
 
 // ---------------------------------------------------------------------------
-// clc_arc — core point generation (single arc from beg_ang to end_ang)
+// clc_arc -- core point generation (single arc from beg_ang to end_ang)
 // Returns array of [x,y] points (n_steps + 1 points)
 // ---------------------------------------------------------------------------
 function clc_arc_pts(xc, yc, xrad, yrad, beg_ang, end_ang, del_ang, n_steps) {
@@ -126,7 +126,7 @@ function clc_arc_pts(xc, yc, xrad, yrad, beg_ang, end_ang, del_ang, n_steps) {
 }
 
 // ---------------------------------------------------------------------------
-// abline — Port of ABLINE from gsxasm1.S
+// abline -- Port of ABLINE from gsxasm1.S
 // Always reorders endpoints left-to-right before running DDA.
 // ---------------------------------------------------------------------------
 function abline(x0, y0, x1, y1) {
@@ -184,7 +184,7 @@ function abline(x0, y0, x1, y1) {
 }
 
 // ---------------------------------------------------------------------------
-// pline — draw open polyline (no closing segment)
+// pline -- draw open polyline (no closing segment)
 // Mirrors pline() in monout.c: draws N-1 segments for N points.
 // ---------------------------------------------------------------------------
 function pline(points) {
@@ -202,7 +202,7 @@ function pline(points) {
 }
 
 // ---------------------------------------------------------------------------
-// pline_closed — draw closed polyline (perimeter of polygon)
+// pline_closed -- draw closed polyline (perimeter of polygon)
 // Mirrors plygn()'s NPTSIN++ then pline() call: the first point is
 // duplicated at the end, so pline draws N segments for N+1 points.
 // ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ function pline_closed(points) {
 }
 
 // ---------------------------------------------------------------------------
-// scanline_fill — mirrors plygn() + CLC_FLIT() scanline fill
+// scanline_fill -- mirrors plygn() + CLC_FLIT() scanline fill
 // Fills from fill_maxy down to fill_miny+1 (topmost row left for perimeter).
 // Uses integer intercepts matching CLC_FLIT()'s method.
 // ---------------------------------------------------------------------------
@@ -273,7 +273,7 @@ function scanline_fill(polygon) {
 // =============================================================================
 
 // ---------------------------------------------------------------------------
-// v_circle — GDP case 3 (CONTRL[5]=4)
+// v_circle -- GDP case 3 (CONTRL[5]=4)
 // Full circle. yrad = SMUL_DIV(xrad, xsize, ysize).
 // Drawn as one full arc, dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
@@ -300,7 +300,7 @@ function v_circle(xc, yc, xrad, res, filled) {
 }
 
 // ---------------------------------------------------------------------------
-// v_arc — GDP case 1 (CONTRL[5]=2)
+// v_arc -- GDP case 1 (CONTRL[5]=2)
 // Circular arc (open). yrad = SMUL_DIV(xrad, xsize, ysize).
 // beg_ang/end_ang from parameters. Dispatched to v_pline (open).
 // ---------------------------------------------------------------------------
@@ -321,7 +321,7 @@ function v_arc(xc, yc, xrad, beg_ang, end_ang, res) {
 }
 
 // ---------------------------------------------------------------------------
-// v_pieslice — GDP case 2 (CONTRL[5]=3)
+// v_pieslice -- GDP case 2 (CONTRL[5]=3)
 // Circular pie wedge. yrad = SMUL_DIV(xrad, xsize, ysize).
 // Center point appended. Dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
@@ -351,7 +351,7 @@ function v_pieslice(xc, yc, xrad, beg_ang, end_ang, res, filled) {
 }
 
 // ---------------------------------------------------------------------------
-// v_ellipse — GDP case 4 (CONTRL[5]=5)
+// v_ellipse -- GDP case 4 (CONTRL[5]=5)
 // Full ellipse. xrad and yrad from parameters directly.
 // For xfm_mode < 2: yrad = yres - yrad (NDC mode). We skip this since
 // we're in raster mode (xfm_mode >= 2).
@@ -376,7 +376,7 @@ function v_ellipse(xc, yc, xrad, yrad, filled) {
 }
 
 // ---------------------------------------------------------------------------
-// v_ellarc — GDP case 5 (CONTRL[5]=6)
+// v_ellarc -- GDP case 5 (CONTRL[5]=6)
 // Elliptical arc (open). xrad/yrad from parameters.
 // Dispatched to v_pline (open).
 // ---------------------------------------------------------------------------
@@ -395,7 +395,7 @@ function v_ellarc(xc, yc, xrad, yrad, beg_ang, end_ang) {
 }
 
 // ---------------------------------------------------------------------------
-// v_ellpie — GDP case 6 (CONTRL[5]=7)
+// v_ellpie -- GDP case 6 (CONTRL[5]=7)
 // Elliptical pie wedge. xrad/yrad from parameters.
 // Center point appended. Dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
@@ -419,3 +419,140 @@ function v_ellpie(xc, yc, xrad, yrad, beg_ang, end_ang, filled) {
 
 	return out_points;
 }
+
+
+// ---------------------------------------------------------------------------
+// v_rfbox -- GDP case 8 (CONTRL[5]=9)
+// Filled rounded rectangle
+// Calls plygn(): scanline fill, then closed perimeter pline.
+// ---------------------------------------------------------------------------
+function v_rfbox(x1, y1, x2, y2, res, filled) {
+
+	const vertices = gdp_rbox(x1, y1, x2, y2, res);
+
+	let out_points = [];
+	// If the 'filled' parameter was passed, then scanline_fill
+	if (filled) {
+		out_points = scanline_fill(vertices);
+	}
+	// Otherwise, we draw the perimeter using a polyline connecting the vertices.
+	else {
+		out_points = pline_closed(vertices);
+	}
+
+	return out_points;
+}
+
+
+// ---------------------------------------------------------------------------
+// gdp_rbox -- Faithful port of gdp_rbox() from monout.c (TOS 1.04)
+//
+// Rounded rectangle. The corner radius is xres>>6 (5 pixels in low-res,
+// 9 in med/high), clamped so the arcs don't exceed half the box size.
+// yrad is aspect-corrected from xrad via SMUL_DIV(xrad, xsize, ysize).
+//
+// The polygon is 21 points: 5 per corner × 4 corners + 1 closing point.
+// Corner arcs use a hardcoded 5-point quarter-arc template at angles
+// 0, 22.5, 45, 67.5, and 90 -- NOT clc_arc.
+//
+// The C code builds the polygon IN-PLACE in the PTSIN array, overwriting
+// the template with corner 4. This port replicates that exact behavior
+// using a flat array to ensure identical results.
+//
+// Dispatch:
+//   v_rbox  (GDP case 7, CONTRL[5]=8): outline only -> pline (open polyline
+//           with NPTSIN=21, which draws 20 segments including the closing
+//           segment from pt20 back along the perimeter, since pt20 == pt0)
+//   v_rfbox (GDP case 8, CONTRL[5]=9): filled -> plygn (scanline fill +
+//           closed perimeter via pline with NPTSIN incremented)
+//
+// Parameters:
+//   x1, y1, x2, y2: rectangle corners (any order, will be normalized)
+//   res: resolution index (0=high, 1=med, 2=low)
+//
+// Returns: points
+// ---------------------------------------------------------------------------
+function gdp_rbox(x1, y1, x2, y2, res) {
+	const resolution = resolutions.find(r => r.mode == res);
+
+	// arb_corner(LLUR): normalize to X1<=X2, Y2<=Y1
+	// (LLUR = lower-left/upper-right; "lower" = larger Y in screen coords)
+	if (x1 > x2) { const t = x1; x1 = x2; x2 = t; }
+	if (y1 < y2) { const t = y1; y1 = y2; y2 = t; }
+	// Now: x1=left, x2=right, y2=top, y1=bottom
+
+	const rdeltax = ((x2 - x1) / 2) | 0;   // integer division
+	const rdeltay = ((y1 - y2) / 2) | 0;
+
+	let xrad = resolution.width >> 6;
+	if (xrad > rdeltax) xrad = rdeltax;
+
+	let yrad = smul_div(xrad, resolution.xsize, resolution.ysize);
+	if (yrad > rdeltay) yrad = rdeltay;
+
+	// 5-point quarter-arc template stored as flat array (matching C layout)
+	// Angles: 90°, 67.5°, 45°, 22.5°, 0° -> stored as (dx, dy) pairs
+	const ptsin = new Array(50).fill(0);
+	ptsin[0] = 0;
+	ptsin[1] = yrad;
+	ptsin[2] = smul_div(Icos(675), xrad, 32767);
+	ptsin[3] = smul_div(Isin(675), yrad, 32767);
+	ptsin[4] = smul_div(Icos(450), xrad, 32767);
+	ptsin[5] = smul_div(Isin(450), yrad, 32767);
+	ptsin[6] = smul_div(Icos(225), xrad, 32767);
+	ptsin[7] = smul_div(Isin(225), yrad, 32767);
+	ptsin[8] = xrad;
+	ptsin[9] = 0;
+
+	// Corner 1: bottom-right (pts 5-9)
+	// Reads template backward (9->0), writes to ptsin[10-19]
+	let xc = x2 - xrad;
+	let yc = y1 - yrad;
+	let j = 10, i = 9;
+	while (i >= 0) {
+		ptsin[j + 1] = yc + ptsin[i]; i--;
+		ptsin[j]     = xc + ptsin[i]; i--;
+		j += 2;
+	}
+
+	// Corner 2: bottom-left (pts 10-14)
+	// Reads template forward (0->9), writes to ptsin[20-29]
+	xc = x1 + xrad;
+	j = 20; i = 0;
+	while (i < 10) {
+		ptsin[j] = xc - ptsin[i]; i++; j++;
+		ptsin[j] = yc + ptsin[i]; i++; j++;
+	}
+
+	// Corner 3: top-left (pts 15-19)
+	// Reads template backward (9->0), writes to ptsin[30-39]
+	yc = y2 + yrad;
+	j = 30; i = 9;
+	while (i >= 0) {
+		ptsin[j + 1] = yc - ptsin[i]; i--;
+		ptsin[j]     = xc - ptsin[i]; i--;
+		j += 2;
+	}
+
+	// Corner 4: top-right (pts 0-4)
+	// Reads template forward (0->9), OVERWRITES ptsin[0-9] (template consumed)
+	xc = x2 - xrad;
+	j = 0; i = 0;
+	while (i < 10) {
+		ptsin[j] = xc + ptsin[i]; i++; j++;
+		ptsin[j] = yc - ptsin[i]; i++; j++;
+	}
+
+	// Close polygon: pt20 = pt0
+	ptsin[40] = ptsin[0];
+	ptsin[41] = ptsin[1];
+
+	// Convert flat array to point objects
+	const points = [];
+	for (let k = 0; k < 21; k++) {
+		points.push({ x: ptsin[k * 2], y: ptsin[k * 2 + 1] });
+	}
+
+	return points;
+}
+
