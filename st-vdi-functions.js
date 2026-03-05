@@ -1,4 +1,4 @@
-// =============================================================================
+	// =============================================================================
 // ATARI ST DRAWING ROUTINES
 // These Javascript functions are based on those in the ST's TOS and VDI,
 // producing lines, circles, and polygons that replicate the unique quirks
@@ -85,7 +85,7 @@ function Icos(ang) {
 // clc_nsteps
 // ---------------------------------------------------------------------------
 function clc_nsteps(xrad, yrad) {
-	const minArc = 16;
+	const minArc = 32;
 	let n_steps = (xrad > yrad) ? xrad : yrad;
 	n_steps = n_steps >> 2;
 	if (n_steps < minArc) { n_steps = minArc; }
@@ -275,7 +275,7 @@ function scanline_fill(polygon) {
 // ---------------------------------------------------------------------------
 // v_circle — GDP case 3 (CONTRL[5]=4)
 // Full circle. yrad = SMUL_DIV(xrad, xsize, ysize).
-// TOS ROM draws as two half-arcs, each dispatched to plygn().
+// Drawn as one full arc, dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
 function v_circle(xc, yc, xrad, res, filled) {
 	const resolution = resolutions.find(r => r.mode == res);
@@ -283,14 +283,7 @@ function v_circle(xc, yc, xrad, res, filled) {
 	const yrad = smul_div(xrad, resolution.xsize, resolution.ysize);
 	const n_steps = clc_nsteps(xrad, yrad);
 
-	// Two half-arcs 
-	// (This was the behavior Claude reported when monitoring
-	// Hatari to determine TOS 1.04 ground truth)
-	const arc1 = clc_arc_pts(xc, yc, xrad, yrad, 0, 1800, 1800, n_steps);
-	const arc2 = clc_arc_pts(xc, yc, xrad, yrad, 1800, 3600, 1800, n_steps);
-
-	// Vertices (skip arc2[0] since it's shared with arc1[last])
-	const vertices = [...arc1, ...arc2.slice(1)];
+	const vertices = clc_arc_pts(xc, yc, xrad, yrad, 0, 3600, 3600, n_steps);
 
 	let out_points = [];
 
@@ -330,7 +323,7 @@ function v_arc(xc, yc, xrad, beg_ang, end_ang, res) {
 // ---------------------------------------------------------------------------
 // v_pieslice — GDP case 2 (CONTRL[5]=3)
 // Circular pie wedge. yrad = SMUL_DIV(xrad, xsize, ysize).
-// Center point appended. Dispatched to plygn().
+// Center point appended. Dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
 function v_pieslice(xc, yc, xrad, beg_ang, end_ang, res, filled) {
 	const { xsize, ysize } = RESOLUTIONS[res];
@@ -362,14 +355,12 @@ function v_pieslice(xc, yc, xrad, beg_ang, end_ang, res, filled) {
 // Full ellipse. xrad and yrad from parameters directly.
 // For xfm_mode < 2: yrad = yres - yrad (NDC mode). We skip this since
 // we're in raster mode (xfm_mode >= 2).
-// Drawn as two half-arcs via plygn().
+// Drawn as one full arc, dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
 function v_ellipse(xc, yc, xrad, yrad, filled) {
 	const n_steps = clc_nsteps(xrad, yrad);
 
-	const arc1 = clc_arc_pts(xc, yc, xrad, yrad, 0, 1800, 1800, n_steps);
-	const arc2 = clc_arc_pts(xc, yc, xrad, yrad, 1800, 3600, 1800, n_steps);
-	const vertices = [...arc1, ...arc2.slice(1)];
+	const vertices = clc_arc_pts(xc, yc, xrad, yrad, 0, 0, 3600, n_steps);
 
 	let out_points = [];
 	// If the 'filled' parameter was passed, then scanline_fill
@@ -406,7 +397,7 @@ function v_ellarc(xc, yc, xrad, yrad, beg_ang, end_ang) {
 // ---------------------------------------------------------------------------
 // v_ellpie — GDP case 6 (CONTRL[5]=7)
 // Elliptical pie wedge. xrad/yrad from parameters.
-// Center point appended. Dispatched to plygn().
+// Center point appended. Dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
 function v_ellpie(xc, yc, xrad, yrad, beg_ang, end_ang, filled) {
 	let del_ang = end_ang - beg_ang;
