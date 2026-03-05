@@ -39,6 +39,19 @@ def main(input_file=None, output_file=None):
 
 	out_cmds = []
 
+	# Check if there's an explicit set_resolution command.
+	# If not, we'll assume medium resolution, which was standard in the 1990s.
+	all_actions = [x[0] for x in cmds]
+	if 'R' not in all_actions:
+		out_cmds.append({
+			'action': 'set_resolution',
+			'params': {
+				'resolution': 1,
+				'palette_id': '0', # JD palette. 0=Atari default
+				'sys_palette_flag': 1, # IG palette flag. 1=Atari default
+			}
+		})
+
 	jump_idx = -1
 
 	for idx, c in enumerate(cmds):
