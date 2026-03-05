@@ -491,7 +491,7 @@ function gdp_rbox(x1, y1, x2, y2, res) {
 	if (yrad > rdeltay) yrad = rdeltay;
 
 	// 5-point quarter-arc template stored as flat array (matching C layout)
-	// Angles: 90°, 67.5°, 45°, 22.5°, 0° -> stored as (dx, dy) pairs
+	// Angles: 90, 67.5, 45, 22.5, 0 -> stored as (dx, dy) pairs
 	const ptsin = new Array(50).fill(0);
 	ptsin[0] = 0;
 	ptsin[1] = yrad;
@@ -550,7 +550,7 @@ function gdp_rbox(x1, y1, x2, y2, res) {
 	// Convert flat array to point objects
 	const points = [];
 	for (let k = 0; k < 21; k++) {
-		points.push({ x: ptsin[k * 2], y: ptsin[k * 2 + 1] });
+		points.push([ ptsin[k * 2], ptsin[k * 2 + 1] ]);
 	}
 
 	return points;
