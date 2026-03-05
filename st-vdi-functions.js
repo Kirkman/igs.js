@@ -278,9 +278,7 @@ function scanline_fill(polygon) {
 // Drawn as one full arc, dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
 function v_circle(xc, yc, xrad, res, filled) {
-	const resolution = resolutions.find(r => r.mode == res);
-
-	const yrad = smul_div(xrad, resolution.xsize, resolution.ysize);
+	const yrad = smul_div(xrad, res.xsize, res.ysize);
 	const n_steps = clc_nsteps(xrad, yrad);
 
 	const vertices = clc_arc_pts(xc, yc, xrad, yrad, 0, 3600, 3600, n_steps);
@@ -305,8 +303,7 @@ function v_circle(xc, yc, xrad, res, filled) {
 // beg_ang/end_ang from parameters. Dispatched to v_pline (open).
 // ---------------------------------------------------------------------------
 function v_arc(xc, yc, xrad, beg_ang, end_ang, res) {
-	const { xsize, ysize } = RESOLUTIONS[res];
-	const yrad = smul_div(xrad, xsize, ysize);
+	const yrad = smul_div(xrad, res.xsize, res.ysize);
 	let del_ang = end_ang - beg_ang;
 	if (del_ang < 0) { del_ang += 3600; }
 	const n_steps = clc_nsteps(xrad, yrad);
@@ -326,8 +323,7 @@ function v_arc(xc, yc, xrad, beg_ang, end_ang, res) {
 // Center point appended. Dispatched to plygn()/scanline_fill.
 // ---------------------------------------------------------------------------
 function v_pieslice(xc, yc, xrad, beg_ang, end_ang, res, filled) {
-	const { xsize, ysize } = RESOLUTIONS[res];
-	const yrad = smul_div(xrad, xsize, ysize);
+	const yrad = smul_div(xrad, res.xsize, res.ysize);
 	let del_ang = end_ang - beg_ang;
 	if (del_ang < 0) { del_ang += 3600; }
 	const n_steps = clc_nsteps(xrad, yrad);
@@ -468,12 +464,16 @@ function v_rfbox(x1, y1, x2, y2, res, filled) {
 //
 // Parameters:
 //   x1, y1, x2, y2: rectangle corners (any order, will be normalized)
-//   res: resolution index (0=high, 1=med, 2=low)
+//   res: IGS resolution object, with .width property.
 //
 // Returns: points
 // ---------------------------------------------------------------------------
 function gdp_rbox(x1, y1, x2, y2, res) {
-	const resolution = resolutions.find(r => r.mode == res);
+
+	// According to tables.c, xres and yres are 1 lower than rez width/height.
+	// (e.g. xres = 320-1; yres = 200-1)
+	// https://github.com/th-otto/tos1x/blob/master/vdi/tables.c
+	const xres = res.width - 1;
 
 	// arb_corner(LLUR): normalize to X1<=X2, Y2<=Y1
 	// (LLUR = lower-left/upper-right; "lower" = larger Y in screen coords)
@@ -484,11 +484,11 @@ function gdp_rbox(x1, y1, x2, y2, res) {
 	const rdeltax = ((x2 - x1) / 2) | 0;   // integer division
 	const rdeltay = ((y1 - y2) / 2) | 0;
 
-	let xrad = resolution.width >> 6;
-	if (xrad > rdeltax) xrad = rdeltax;
+	let xrad = xres >> 6;
+	if (xrad > rdeltax) { xrad = rdeltax; }
 
-	let yrad = smul_div(xrad, resolution.xsize, resolution.ysize);
-	if (yrad > rdeltay) yrad = rdeltay;
+	let yrad = smul_div(xrad, res.xsize, res.ysize);
+	if (yrad > rdeltay) { yrad = rdeltay; }
 
 	// 5-point quarter-arc template stored as flat array (matching C layout)
 	// Angles: 90, 67.5, 45, 22.5, 0 -> stored as (dx, dy) pairs

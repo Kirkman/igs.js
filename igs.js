@@ -3423,7 +3423,7 @@ function draw_roundrect(ctx, points, xor=false) {
 
 	const user_resolution = get_res_from_history();
 
-	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution.mode, false);
+	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution, false);
 
 	draw_points(ctx, out_points, xor, true);
 }
@@ -3437,7 +3437,7 @@ function fill_roundrect(ctx, points, xor=false) {
 
 	const user_resolution = get_res_from_history();
 
-	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution.mode, true);
+	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution, true);
 
 	draw_points(ctx, out_points, xor);
 }
@@ -3458,7 +3458,7 @@ function fill_poly(ctx, points, xor=false) {
 
 function draw_ellarc(ctx, xc, yc, r, xor=false) {
 	const user_resolution = get_res_from_history();
-	const points = v_circle(xc, yc, r, user_resolution.mode, false);
+	const points = v_circle(xc, yc, r, user_resolution, false);
 	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, points, xor, true);
 }
@@ -3466,7 +3466,7 @@ function draw_ellarc(ctx, xc, yc, r, xor=false) {
 
 function draw_circle(ctx, xc, yc, r, xor=false) {
 	const user_resolution = get_res_from_history();
-	const points = v_circle(xc, yc, r, user_resolution.mode, false);
+	const points = v_circle(xc, yc, r, user_resolution, false);
 	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, points, xor, true);
 }
@@ -3474,7 +3474,7 @@ function draw_circle(ctx, xc, yc, r, xor=false) {
 
 function fill_circle(ctx, xc, yc, r, xor=false) {
 	const user_resolution = get_res_from_history();
-	const points = v_circle(xc, yc, r, user_resolution.mode, true);
+	const points = v_circle(xc, yc, r, user_resolution, true);
 	draw_points(ctx, points, xor);
 }
 
@@ -3484,7 +3484,7 @@ function draw_ellipse(ctx, xc, yc, xrad, yrad, xor=false) {
 	let points;
 	// Check for circle vs ellipse
 	if (xrad == yrad) {
-		points = v_circle(xc, yc, xrad, user_resolution.mode, false);
+		points = v_circle(xc, yc, xrad, user_resolution, false);
 	}
 	else {
 		points = v_ellipse(xc, yc, xrad, yrad, false);
@@ -3500,7 +3500,7 @@ function fill_ellipse(ctx, xc, yc, xrad, yrad, xor=false) {
 	// Check for circle vs ellipse
 	if (xrad == yrad) {
 		// Set `filled` to true
-		points = v_circle(xc, yc, xrad, user_resolution.mode, true);
+		points = v_circle(xc, yc, xrad, user_resolution, true);
 	}
 	else {
 		// Set `filled` to true
