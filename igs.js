@@ -2394,11 +2394,13 @@ const tool_functions = {
 				// Check if shift key is being held.
 				// If so, restrict the rectangle to a square shape.
 				if (event.shiftKey) {
-					// Find the x and y radii by measuring from origin to this second point.
-					let [x_radius, y_radius] = get_distance_xy(origin_x, origin_y, px, py);
-					let dist = Math.max(x_radius, y_radius);
-					px = origin_x + dist;
-					py = origin_y + dist;
+					let dx = px - origin_x;
+					let dy = py - origin_y;
+
+					let size = Math.max(Math.abs(dx), Math.abs(dy));
+
+					px = origin_x + Math.sign(dx || 1) * size;
+					py = origin_y + Math.sign(dy || 1) * size;
 				}
 
 				// We're not going to add all four points, but just the origin and the extent.
@@ -2473,11 +2475,13 @@ const tool_functions = {
 				// Check if shift key is being held.
 				// If so, restrict the rectangle to a square shape.
 				if (event.shiftKey) {
-					// Find the x and y radii by measuring from origin to this second point.
-					let [x_radius, y_radius] = get_distance_xy(origin_x, origin_y, px, py);
-					let dist = Math.max(x_radius, y_radius);
-					px = origin_x + dist;
-					py = origin_y + dist;
+					let dx = px - origin_x;
+					let dy = py - origin_y;
+
+					let size = Math.max(Math.abs(dx), Math.abs(dy));
+
+					px = origin_x + Math.sign(dx || 1) * size;
+					py = origin_y + Math.sign(dy || 1) * size;
 				}
 
 				// Draw the rectangle with fill
