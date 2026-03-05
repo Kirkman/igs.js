@@ -3415,30 +3415,19 @@ function fill_rect(ctx, points, xor=false) {
 
 
 function draw_roundrect(ctx, points, xor=false) {
-	const x0 = Math.min(points[0][0], points[1][0]);
-	const x1 = Math.max(points[0][0], points[1][0]);
-
-	const y0 = Math.min(points[0][1], points[1][1]);
-	const y1 = Math.max(points[0][1], points[1][1]);
-
+	const x0 = points[0][0], x1 = points[1][0];
+	const y0 = points[0][1], y1 = points[0][1];
 	const user_resolution = get_res_from_history();
-
 	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution, false);
-
+	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, out_points, xor, true);
 }
 
 function fill_roundrect(ctx, points, xor=false) {
-	const x0 = Math.min(points[0][0], points[1][0]);
-	const x1 = Math.max(points[0][0], points[1][0]);
-
-	const y0 = Math.min(points[0][1], points[1][1]);
-	const y1 = Math.max(points[0][1], points[1][1]);
-
+	const x0 = points[0][0], x1 = points[1][0];
+	const y0 = points[0][1], y1 = points[0][1];
 	const user_resolution = get_res_from_history();
-
 	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution, true);
-
 	draw_points(ctx, out_points, xor);
 }
 

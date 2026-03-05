@@ -459,8 +459,13 @@ function v_rfbox(x1, y1, x2, y2, res, filled) {
 //   v_rbox  (GDP case 7, CONTRL[5]=8): outline only -> pline (open polyline
 //           with NPTSIN=21, which draws 20 segments including the closing
 //           segment from pt20 back along the perimeter, since pt20 == pt0)
+//           IGS does *NOT* call this. The main difference from v_rfbox is
+//           that v_rbox draws only an outline, and it uses polyline
+//           attributes (line width, line color, etc).
 //   v_rfbox (GDP case 8, CONTRL[5]=9): filled -> plygn (scanline fill +
 //           closed perimeter via pline with NPTSIN incremented)
+//           This is the one IGS calls from the "B" command.
+//           The perimeter/outline is drawn using FILL color, not line.
 //
 // Parameters:
 //   x1, y1, x2, y2: rectangle corners (any order, will be normalized)
