@@ -326,7 +326,16 @@ function scale_font_def(font, scale=2) {
 	};
 }
 
-
+function get_res_from_history() {
+	const cmd = history.find('set_resolution');
+	if (cmd != null) {
+		const res_id = cmd.params.resolution;
+		const user_resolution = resolutions.filter(elem => elem.id == res_id)[0];
+		return user_resolution;
+	}
+	// Default to low if nothing found
+	return 'low';
+}
 
 
 
@@ -1398,6 +1407,9 @@ const history = {
 			this.present = this.future.shift();
 		}
 	},
+	find: function(action) {
+		return this.past.find(d => d.action == action);
+	},
 	move: function() {
 		// Display the modal
 		document.querySelector('.modal-wrapper').classList.remove('hidden');
@@ -1924,12 +1936,23 @@ const renderer = {
 		// My command history includes a `color` param, but I probably shouldn't be including that. 
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 
-		// Draw the rectangle with fill
-		fill_rect('virtual', params.points);
-
-		// Draw the edges of the rectangle atop the fill, if border_flag is true
-		if (border_flag) {
-			draw_rect('virtual', params.points);
+		// Draw rounded corners, if corner_flag is set
+		if (params.corner_flag) {
+			// Draw the rectangle with fill
+			fill_roundrect('virtual', params.points);
+			// Draw the edges of the rectangle atop the fill, if border_flag is true
+			if (border_flag) {
+				draw_roundrect('virtual', params.points);
+			}
+		}
+		// Otherwise, draw normal rect
+		else {
+			// Draw the rectangle with fill
+			fill_rect('virtual', params.points);
+			// Draw the edges of the rectangle atop the fill, if border_flag is true
+			if (border_flag) {
+				draw_rect('virtual', params.points);
+			}
 		}
 	},
 	draw_curve: function(params) {
@@ -2369,6 +2392,7 @@ const tool_functions = {
 
 	draw_rect: {
 		points: [],
+		corner_flag: false, // hard-coded for now
 		init: function() {},
 		onclick: function(event) {
 			debug(`draw_rect click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
@@ -2416,7 +2440,8 @@ const tool_functions = {
 					action: 'draw_rect',
 					params: {
 						color: virtual_canvas.get_color(),
-						'points': tool_functions.draw_rect.points
+						points: tool_functions.draw_rect.points,
+						corner_flag: tool_functions.draw_rect.corner_flag
 					}
 				});
 
@@ -3389,6 +3414,35 @@ function fill_rect(ctx, points, xor=false) {
 }
 
 
+function draw_roundrect(ctx, points, xor=false) {
+	const x0 = Math.min(points[0][0], points[1][0]);
+	const x1 = Math.max(points[0][0], points[1][0]);
+
+	const y0 = Math.min(points[0][1], points[1][1]);
+	const y1 = Math.max(points[0][1], points[1][1]);
+
+	const user_resolution = get_res_from_history();
+
+	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution.mode, false);
+
+	draw_points(ctx, out_points, xor, true);
+}
+
+function fill_roundrect(ctx, points, xor=false) {
+	const x0 = Math.min(points[0][0], points[1][0]);
+	const x1 = Math.max(points[0][0], points[1][0]);
+
+	const y0 = Math.min(points[0][1], points[1][1]);
+	const y1 = Math.max(points[0][1], points[1][1]);
+
+	const user_resolution = get_res_from_history();
+
+	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution.mode, true);
+
+	draw_points(ctx, out_points, xor);
+}
+
+
 function draw_polyline(ctx, points, xor=false) {
 	let out_points = pline(points);
 	// This a line, so set `ignore_patterns` to true
@@ -3403,30 +3457,34 @@ function fill_poly(ctx, points, xor=false) {
 
 
 function draw_ellarc(ctx, xc, yc, r, xor=false) {
-	const points = v_circle(xc, yc, r, 'low', false);
+	const user_resolution = get_res_from_history();
+	const points = v_circle(xc, yc, r, user_resolution.mode, false);
 	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, points, xor, true);
 }
 
 
 function draw_circle(ctx, xc, yc, r, xor=false) {
-	const points = v_circle(xc, yc, r, 'low', false);
+	const user_resolution = get_res_from_history();
+	const points = v_circle(xc, yc, r, user_resolution.mode, false);
 	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, points, xor, true);
 }
 
 
 function fill_circle(ctx, xc, yc, r, xor=false) {
-	const points = v_circle(xc, yc, r, 'low', true);
+	const user_resolution = get_res_from_history();
+	const points = v_circle(xc, yc, r, user_resolution.mode, true);
 	draw_points(ctx, points, xor);
 }
 
 
 function draw_ellipse(ctx, xc, yc, xrad, yrad, xor=false) {
+	const user_resolution = get_res_from_history();
 	let points;
 	// Check for circle vs ellipse
 	if (xrad == yrad) {
-		points = v_circle(xc, yc, xrad, 'low', false);
+		points = v_circle(xc, yc, xrad, user_resolution.mode, false);
 	}
 	else {
 		points = v_ellipse(xc, yc, xrad, yrad, false);
@@ -3437,11 +3495,12 @@ function draw_ellipse(ctx, xc, yc, xrad, yrad, xor=false) {
 
 
 function fill_ellipse(ctx, xc, yc, xrad, yrad, xor=false) {
+	const user_resolution = get_res_from_history();
 	let points;
 	// Check for circle vs ellipse
 	if (xrad == yrad) {
 		// Set `filled` to true
-		points = v_circle(xc, yc, xrad, 'low', true);
+		points = v_circle(xc, yc, xrad, user_resolution.mode, true);
 	}
 	else {
 		// Set `filled` to true
