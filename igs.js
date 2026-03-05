@@ -2391,6 +2391,16 @@ const tool_functions = {
 
 			// Drawing state means second click. Time to draw the rect.
 			else if (current_state == 'drawing') {
+				// Check if shift key is being held.
+				// If so, restrict the rectangle to a square shape.
+				if (event.shiftKey) {
+					// Find the x and y radii by measuring from origin to this second point.
+					let [x_radius, y_radius] = get_distance_xy(origin_x, origin_y, px, py);
+					let dist = Math.max(x_radius, y_radius);
+					px = origin_x + dist;
+					py = origin_y + dist;
+				}
+
 				// We're not going to add all four points, but just the origin and the extent.
 				tool_functions.draw_rect.points.push([px, py]);
 
@@ -2458,6 +2468,17 @@ const tool_functions = {
 			if (current_state == 'drawing') {
 				// Draw the edges of the temporary rectangle
 				set_color(virtual_canvas.get_color(), liveContext, 1);
+
+
+				// Check if shift key is being held.
+				// If so, restrict the rectangle to a square shape.
+				if (event.shiftKey) {
+					// Find the x and y radii by measuring from origin to this second point.
+					let [x_radius, y_radius] = get_distance_xy(origin_x, origin_y, px, py);
+					let dist = Math.max(x_radius, y_radius);
+					px = origin_x + dist;
+					py = origin_y + dist;
+				}
 
 				// Draw the rectangle with fill
 				fill_rect(liveContext, [[origin_x, origin_y], [px, py]]);
