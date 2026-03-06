@@ -44,9 +44,11 @@ let polygon_start_y = null;
 let virtual_canvas = {
 	width: null,
 	height: null,
-	data: [], // actual screen memory
-	buffer: [], // temporary screen copy for blitting
-	memory: [], // blit memory, same size as screen
+	buffer_width: null,
+	buffer_height: null,
+	data: [], // actual screen data
+	buffer: [], // temporary buffer for blitting
+	memory: [], // blit memory
 	palette: [],
 	color: 0,
 	init_data: function(w, h) {
@@ -56,8 +58,13 @@ let virtual_canvas = {
 	},
 	reset_data: function() {
 		this.data = Array(this.height).fill().map(() => Array(this.width).fill(0));
-		this.buffer = Array(this.height).fill().map(() => Array(this.width).fill(0));
-		this.memory = Array(this.height).fill().map(() => Array(this.width).fill(0));
+		this.buffer = [];
+		this.memory = [];
+	},
+	reset_buffer: function() {
+		this.buffer_width = null;
+		this.buffer_height = null;
+		this.buffer = [];
 	},
 	set_palette: function(pal) {
 		this.palette = [...pal];
@@ -92,17 +99,37 @@ let virtual_canvas = {
 	get_data: function() {
 		return this.data.flat();
 	},
-	// Copy the virtual screen or the blit memory to a temporary buffer before blitting
-	copy_to_buffer: function(src) {
+	// // Copy the virtual screen or the blit memory to a temporary buffer before blitting
+	// copy_to_memory: function(src) {
+	// 	if (src == 'virtual') {
+	// 		this.buffer = this.data.map(row => row.slice());
+	// 	}
+	// 	else if (src == 'memory') {
+	// 		this.buffer = this.memory.map(row => row.slice());
+	// 	}
+	// },
+	copy_to_buffer: function(src, src_pts) {
+		this.reset_buffer();
+
+		const x0 = src_pts[0][0];
+		const y0 = src_pts[0][1];
+		const x1 = src_pts[1][0];
+		const y1 = src_pts[1][1];
+
+		this.buffer_width = x1 - x0 + 1;
+		this.buffer_height = y1 - y0 + 1;
+
+		let src_ctx = null;
 		if (src == 'virtual') {
-			this.buffer = this.data.map(row => row.slice());
+			src_ctx = this.data;
 		}
 		else if (src == 'memory') {
-			this.buffer = this.memory.map(row => row.slice());
+			src_ctx = this.memory;
 		}
-	},
-	reset_buffer: function() {
-		this.buffer = Array(this.height).fill().map(() => Array(this.width).fill(0));
+
+		for (let y = 0; y < this.buffer_height; y++) {
+			this.buffer.push( src_ctx[y0 + y].slice(x0, x0 + this.buffer_width) );
+		}
 	},
 	get_buffer_pixel: function(x, y) {
 		return this.buffer[y][x];
@@ -2044,16 +2071,21 @@ const renderer = {
 	blit: function(params) {
 		this.update_tool('blit');
 
-		// blit_rect wants all four corners, but history saves only upper left and lower right.
-		const source_corners = [
-			params.source_points[0], 
-			[params.source_points[1][0], params.source_points[0][1]], 
-			params.source_points[1], 
-			[params.source_points[0][0], params.source_points[1][1]], 
-		];
+			// Force source point coordinates to be arranged top left to bottom right.
+			const source_x0 = Math.min(params.source_points[0][0], params.source_points[1][0]);
+			const source_x1 = Math.max(params.source_points[0][0], params.source_points[1][0]);
 
-		blit_read('virtual');
-		blit_write('virtual', source_corners, params.dest_points, params.mode);
+			const source_y0 = Math.min(params.source_points[0][1], params.source_points[1][1]);
+			const source_y1 = Math.max(params.source_points[0][1], params.source_points[1][1]);
+
+			params.source_points = [
+				[source_x0, source_y0],
+				[source_x1, source_y1],
+			];
+
+		blit_read('virtual', params.source_points);
+
+		blit_write('virtual', params.source_points, params.dest_points, params.mode);
 	},
 
 
@@ -2884,21 +2916,30 @@ const tool_functions = {
 				origin_x = px;
 				origin_y = py;
 
-				// Add origin. (We're not going to add all four points of the rect, but just the origin and extent.)
-				tool_functions.blit.source_points.push([px, py]);
+				// origin will be added to source_points after we find extent.
 			}
 
 			// Drawing state means second click. Time to draw the rect.
 			else if (current_state == 'drawing') {
 				current_state = 'moving';
 
-				// Add extent. (We're not going to add all four source_points of the rect, but just the origin and extent.)
-				tool_functions.blit.source_points.push([px, py]);
+				// Now that we've drawn the bounding rectangle, we need to ensure
+				// the source point coordinates are arranged top left to bottom right.
+				const source_x0 = Math.min(origin_x, px);
+				const source_x1 = Math.max(origin_x, px);
+				const source_y0 = Math.min(origin_y, py);
+				const source_y1 = Math.max(origin_y, py);
+
+				// Now add origin and extent.
+				tool_functions.blit.source_points = [
+					[source_x0, source_y0],
+					[source_x1, source_y1],
+				];
 				tool_functions.blit.source_width = px - origin_x;
 				tool_functions.blit.source_height = py - origin_y;
 
-				// Clone the screen data -- but only once.
-				blit_read('virtual');
+				// Copy the blit into the buffer.
+				blit_read('virtual', tool_functions.blit.source_points);
 
 				// Reset the cursor layer to get rid of the guide lines
 				clearCanvas(cursorContext, cursorCanvas, 'rgba(0,0,0,0)');
@@ -3016,15 +3057,7 @@ const tool_functions = {
 					[px, py] = convert_to_45_deg([origin_x, origin_y], [px, py]);
 				}
 
-				// blit_rect wants all four corners, but history saves only upper left and lower right.
-				const source_corners = [
-					tool_functions.blit.source_points[0], 
-					[tool_functions.blit.source_points[1][0], tool_functions.blit.source_points[0][1]], 
-					tool_functions.blit.source_points[1], 
-					[tool_functions.blit.source_points[0][0], tool_functions.blit.source_points[1][1]], 
-				];
-
-				blit_write(liveContext, source_corners, [[px, py]], tool_functions.blit.mode);
+				blit_write(liveContext, tool_functions.blit.source_points, [[px, py]], tool_functions.blit.mode);
 
 			}
 
@@ -3685,20 +3718,22 @@ const LOGICAL_OPS = [
 
 // Clone the source canvas before writing the blit, so we don't overwrite it in place.
 // Breaking this out separately allows to avoid doing it repeatedly on mousemove.
-function blit_read(src_ctx) {
-	// // Snapshot source rect first (aliasing safety)
-	// const src_w = source_x1 - source_x0 + 1;
-	// const src_h = source_y1 - source_y0 + 1;
-	// const snapshot = [];
-	// for (let y = 0; y < src_h; y++) {
-	// 	snapshot.push(virtual_canvas.get_buffer_row(source_y0 + y, source_x0, src_w));
-	// }
-
+function blit_read(src_ctx, src_pts) {
 	// Clone the contents of the screen to buffer before blitting,
 	// to avoid modifying the source in place during the blit.
 	// (can also clone the blit memory, which I'll need in future)
-	virtual_canvas.copy_to_buffer(src_ctx);
+	virtual_canvas.copy_to_buffer(src_ctx, src_pts);
 }
+
+
+// IGS GRAB COMMAND
+// ----------------
+//
+// G#G>  0,  3,  0,0,100,100,100,50:    screen to screen            sx1,sy1,sx2,sy2,dx1,dy1
+// G#G>  1,  3,  0,0,100,100:           screen to memory            sx1,sy1,sx2,sy2
+// G#G>  2,  3,  200,50:                memory to screen            dx1,dy1
+// G#G>  3,  3,  50,50,75,75,150,100:   piece of memory to screen   sx1,sy1,sx2,sy2,dx1,dy1
+// G#G>  4,  3,  50,50,75,75,150,100:   memory to memory            sx1,sy1,sx2,sy2,dx1,dy1
 
 
 // The actual blit process -- read each source and destination pixel,
@@ -3707,7 +3742,7 @@ function blit_read(src_ctx) {
 // HTML canvas redraws inside the loop, and instead doing a single full redraw
 // after the loop is finished. That's probably the way to go, but it will require
 // reworking/rethinking ALL of the canvas/drawing functions.
-function blit_write(dest_ctx, corners, dest_pt, mode) {
+function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 	let cw, ch;
 	if (dest_ctx == 'virtual') {
 		cw = virtual_canvas.width;
@@ -3718,14 +3753,18 @@ function blit_write(dest_ctx, corners, dest_pt, mode) {
 		ch = dest_ctx.canvas.height;
 	}
 
-	const source_x0 = Math.min(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
-	const source_x1 = Math.max(corners[0][0], corners[1][0], corners[2][0], corners[3][0]);
+	const source_x0 = src_pts[0][0];
+	const source_y0 = src_pts[0][1];
+	const source_x1 = src_pts[1][0];
+	const source_y1 = src_pts[1][1];
+	const dest_x0   = dest_pts[0][0];
+	const dest_y0   = dest_pts[0][1];
 
-	const source_y0 = Math.min(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
-	const source_y1 = Math.max(corners[0][1], corners[1][1], corners[2][1], corners[3][1]);
+	const offset_x = dest_x0 - source_x0;
+	const offset_y = dest_y0 - source_y0;
 
-	const offset_x = dest_pt[0][0] - source_x0;
-	const offset_y = dest_pt[0][1] - source_y0;
+	const src_w = virtual_canvas.buffer_width;
+	const src_h = virtual_canvas.buffer_height;
 
 	// Hoist all invariants out of the loop
 	const op = LOGICAL_OPS[mode];
@@ -3736,12 +3775,12 @@ function blit_write(dest_ctx, corners, dest_pt, mode) {
 	const bitmask = virtual_canvas.get_palette().length === 4 ? 0x3 : 0xF;
 
 	// Iterate over all the pixels, skipping any that are outside the destination bounds
-	for (let y = source_y0; y < source_y1+1; y++) {
-		const dy = y+offset_y;
+	for (let y=0; y<src_h; y++) {
+		const dy = y + dest_y0;
 		if (dy < 0 || dy >= ch) { continue; }
 
-		for (let x = source_x0; x < source_x1+1; x++) {
-			const dx = x+offset_x;
+		for (let x=0; x<src_w; x++) {
+			const dx = x + dest_x0;
 			if (dx < 0 || dx >= cw) { continue; }
 
 			// Get the source and destination pixels.
