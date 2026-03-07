@@ -129,12 +129,25 @@ a {
 	grid-gap: 2rem;
 }
 
-/* Let's use the width of the Loupe to define the width of the entire pane */
+/*	Originally I used the width of the Loupe to define the width of the entire pane.
+	But at smaller scale factors, that was a bad solution.
+
+	--loupe-width varies as follows:
+		scale 3 (low res)  | 253
+		scale 2 (high/med) | 169
+		scale 1 (high/med) |  85
+
+	I've been using horizontal-scale 2 for high/med, but it makes the canvas awfully big.
+	When I experimented with using horizontal-scale 1 instead, the left pane got tiny.
+	So instead of setting `width: var(--loupe-width);`, we'll use min- and max-width.
+*/
 .pane-left {
 	z-index: 0;
 	position: relative;
-	width: var(--loupe-width)
+	min-width: var(--loupe-width); 
+	max-width: 253; /* hard-coded scale 3 loupe width */
 }
+
 
 .pane-right {
 	display: none;
