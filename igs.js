@@ -2005,12 +2005,28 @@ const renderer = {
 			}
 		}
 	},
-	draw_curve: function(params) {
-		this.update_tool('draw_curve');
 
-		// Draw the curve
-		draw_curve('virtual', params.center[0], params.center[1], params.radius);
+	// HANDLE ARC AND ELLIPTICAL ARC TOGETHER
+	// There's no reason to clutter the interface with a separate tool for each.
+	// JoshDraw will record arcs in its history as elliptical arcs with equal radii.
+	// But when drawing, we'll differentiate.
+	// If the radii are equal, then we'll draw it using arc-specific functions;
+	// if not, we'll use elliptical-arc-specific functions.
+	draw_curve: function(params) {
+		// NOT IMPLEMENTED IN THE UI YET.
+		// this.update_tool('draw_curve');
+
+		// If the radii are equal, treat this as an arc not an elliptical arc.
+		if (params.x_radius == params.y_radius) {
+			// Draw the curve
+			draw_arc('virtual', params.center[0], params.center[1], params.x_radius, params.beg_ang, params.end_ang);
+		}
+		else {
+			// Draw the curve
+			draw_ellarc('virtual', params.center[0], params.center[1], params.x_radius, params.y_radius, params.beg_ang, params.end_ang);
+		}
 	},
+
 
 	// HANDLE CIRCLE AND ELLIPSE TOGETHER
 	// There's no reason to clutter the interface with a separate tool for each.
@@ -3528,9 +3544,12 @@ function fill_poly(ctx, points, xor=false) {
 }
 
 
-function draw_ellarc(ctx, xc, yc, r, xor=false) {
+function draw_arc(ctx, xc, yc, r, beg_ang, end_ang, xor=false) {
 	const user_resolution = get_res_from_history();
-	const points = v_circle(xc, yc, r, user_resolution, false);
+	// IGS stores beg_ang and end_ang as 0-360, but the ST wants 0-3600.
+	// IG217.c shows that Larry multiplies the angles by 10 
+	// before passing them to the v_* functions.
+	const points = v_arc(xc, yc, r, beg_ang*10, end_ang*10, user_resolution, false);
 	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, points, xor, true);
 }
@@ -3548,6 +3567,16 @@ function fill_circle(ctx, xc, yc, r, xor=false) {
 	const user_resolution = get_res_from_history();
 	const points = v_circle(xc, yc, r, user_resolution, true);
 	draw_points(ctx, points, xor);
+}
+
+
+function draw_ellarc(ctx, xc, yc, xrad, yrad, beg_ang, end_ang, xor=false) {
+	// IGS stores beg_ang and end_ang as 0-360, but the ST wants 0-3600.
+	// IG217.c shows that Larry multiplies the angles by 10 
+	// before passing them to the v_* functions.
+	const points = v_ellarc(xc, yc, xrad, yrad, beg_ang*10, end_ang*10);
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, points, xor, true);
 }
 
 

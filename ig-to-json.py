@@ -336,18 +336,53 @@ def main(input_file=None, output_file=None):
 			continue
 
 
-		# Draw circle/disc
-		if cmd == 'O':
+		# Draw arc
+		# JoshDraw uses `draw_curve` for both arcs and elliptical arcs.
+		if cmd == 'K':
 			out_cmds.append({
-				'action': 'draw_circle',
+				'action': 'draw_curve',
 				'params': {
 					'color': fill_color,
 					'center': [out_params[0], out_params[1]],
-					'radius': out_params[2],
+					# Circular "Arc" is just an elliptical arc with identical x/y radius.
+					'x_radius': out_params[2],
+					'y_radius': out_params[2],
+					'beg_ang': out_params[3],
+					'end_ang': out_params[4],
+				}
+			})
+
+
+		# Draw circle/disc.
+		# JoshDraw uses `draw_ellipse` for both circles and ellipses.
+		if cmd == 'O':
+			out_cmds.append({
+				'action': 'draw_ellipse',
+				'params': {
+					'color': fill_color,
+					'center': [out_params[0], out_params[1]],
+					# "Circle" is just an ellipse with identical x/y radius.
+					'x_radius': out_params[2],
+					'y_radius': out_params[2],
 				}
 			})
 			continue
 
+
+		# Draw elliptical arc
+		if cmd == 'J':
+			out_cmds.append({
+				'action': 'draw_curve',
+				'params': {
+					'color': fill_color,
+					'center': [out_params[0], out_params[1]],
+					'x_radius': out_params[2],
+					'y_radius': out_params[3],
+					'beg_ang': out_params[4],
+					'end_ang': out_params[5],
+				}
+			})
+			continue
 
 
 		# Draw ellipse
