@@ -1310,6 +1310,7 @@ const tools = [
 	{ 'name': 'Draw rectangle', 'function': 'draw_rect' },
 	{ 'name': 'Draw polygon', 'function': 'draw_polygon' },
 	// { 'name': 'Draw curve', 'function': 'draw_curve' },
+	// { 'name': 'Draw slice', 'function': 'draw_slice' },
 	{ 'name': 'Draw ellipse/circle', 'function': 'draw_ellipse' },
 	{ 'name': 'Grab / blit', 'function': 'blit' },
 	{ 'name': 'Write text', 'function': 'write_text' },
@@ -1717,14 +1718,9 @@ const history = {
 				// JoshDraw stores circles as ellipses with equal radii. 
 				// But to optimize for IG, we'll use the circle command when needed.
 				case 'draw_ellipse':
-					// NOTE ABOUT CIRCLES/ELLIPSES, BORDERS, AND COLOR
-					// Because the shape of filled circles is sometimes radically different
-					// from the shape of outlined circles, I made a design decision
-					// to *always* draw a border around circles in JoshDraw.
-					// This ensures the final circles are more consistent with the previews.
-
-					// That means I do not bother with IG's [H]ollow command.
-					// Instead I set outlines and fills using the [A]ttribute command.
+					// JoshDraw does not bother with IG's [H]ollow command.
+					// Instead, users must explicitly set outlines and fills
+					// which will be exported using the [A]ttribute command.
 					// Those do NOT need to be handled within this case. 
 					// They are handled in the `change_pattern` case.
 
@@ -1738,6 +1734,24 @@ const history = {
 					}
 
 					// Handle circles [O]
+					if (cmd.params.x_radius == cmd.params.y_radius) {
+						cmd_str += `G#O>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.x_radius}:\r\n`;
+					}
+					// Handle ellipses [Q]
+					else {
+						cmd_str += `G#Q>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.x_radius},${cmd.params.y_radius}:\r\n`;
+					}
+					break;
+
+				// JoshDraw stores pie slices as elliptical pie slices with equal radii. 
+				// But to optimize for IG, we'll use the V pie slice command when needed.
+				case 'draw_slice':
+					if (exp_line_color !== cmd.params.color) {
+						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
+						exp_line_color = cmd.params.color;
+					}
+
+					// Handle circular pie slices [V]
 					if (cmd.params.x_radius == cmd.params.y_radius) {
 						cmd_str += `G#O>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.x_radius}:\r\n`;
 					}
@@ -2053,6 +2067,42 @@ const renderer = {
 		else {
 			// Draw the curve
 			draw_ellarc('virtual', params.center[0], params.center[1], params.x_radius, params.y_radius, params.beg_ang, params.end_ang);
+		}
+	},
+
+
+	// HANDLE PIE SLICE AND ELLIPTICAL PIE SLICE TOGETHER
+	// There's no reason to clutter the interface with a separate tool for each.
+	// JoshDraw will record pie slices in its history as elliptical pie slices with equal radii.
+	// But when drawing, we'll differentiate.
+	// If the radii are equal, then we'll draw it using pieslice-specific functions;
+	// if not, we'll use elliptical-pieslice-specific functions.
+	draw_slice: function(params) {
+		// NOT IMPLEMENTED IN THE UI YET.
+		// this.update_tool('draw_slice');
+
+		// If the radii are equal, treat this as a circular pie slice not an elliptical pie slice.
+		if (params.x_radius == params.y_radius) {
+			// Draw the slice with fill
+			fill_pieslice('virtual', params.center[0], params.center[1], params.x_radius, params.beg_ang, params.end_ang);
+			console.log(' + fill_pieslice');
+
+			// Draw the edges of the slice atop the fill, if border_flag is true
+			if (border_flag) {
+				draw_pieslice('virtual', params.center[0], params.center[1], params.x_radius, params.beg_ang, params.end_ang);
+				console.log(' + draw_pieslice');
+			}
+		}
+		else {
+			// Draw the slice with fill
+			fill_ellpie('virtual', params.center[0], params.center[1], params.x_radius, params.y_radius, params.beg_ang, params.end_ang);
+			console.log(' + fill_ellpie');
+
+			// Draw the edges of the slice atop the fill, if border_flag is true
+			if (border_flag) {
+				draw_ellpie('virtual', params.center[0], params.center[1], params.x_radius, params.y_radius, params.beg_ang, params.end_ang);
+				console.log(' + draw_ellpie');
+			}
 		}
 	},
 
@@ -3606,7 +3656,6 @@ function fill_rect(ctx, points, xor=false) {
 			out_points.push([x,y]);
 		}
 	}
-	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, out_points, xor);
 }
 
@@ -3621,6 +3670,7 @@ function draw_roundrect(ctx, points, xor=false) {
 
 	const out_points = v_rfbox(x0, y0, x1, y1, user_resolution, false);
 
+	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, out_points, xor, true);
 }
 
@@ -3654,11 +3704,34 @@ function fill_poly(ctx, points, xor=false) {
 function draw_arc(ctx, xc, yc, r, beg_ang, end_ang, xor=false) {
 	const user_resolution = get_res_from_history();
 	// IGS stores beg_ang and end_ang as 0-360, but the ST wants 0-3600.
-	// IG217.c shows that Larry multiplies the angles by 10 
+	// IG217.c shows that Larry multiplies the angles by 10
 	// before passing them to the v_* functions.
 	const points = v_arc(xc, yc, r, beg_ang*10, end_ang*10, user_resolution, false);
 	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, points, xor, true);
+}
+
+
+function draw_pieslice(ctx, xc, yc, r, beg_ang, end_ang, xor=false) {
+	const user_resolution = get_res_from_history();
+	// IGS stores beg_ang and end_ang as 0-360, but the ST wants 0-3600.
+	// IG217.c shows that Larry multiplies the angles by 10
+	// before passing them to the v_* functions.
+	const points = v_pieslice(xc, yc, r, beg_ang*10, end_ang*10, user_resolution, false);
+	console.log(points);
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, points, xor, true);
+}
+
+
+function fill_pieslice(ctx, xc, yc, r, beg_ang, end_ang, xor=false) {
+	const user_resolution = get_res_from_history();
+	// IGS stores beg_ang and end_ang as 0-360, but the ST wants 0-3600.
+	// IG217.c shows that Larry multiplies the angles by 10
+	// before passing them to the v_* functions.
+	const points = v_pieslice(xc, yc, r, beg_ang*10, end_ang*10, user_resolution, true);
+	console.log(points);
+	draw_points(ctx, points, xor);
 }
 
 
@@ -3679,13 +3752,33 @@ function fill_circle(ctx, xc, yc, r, xor=false) {
 
 function draw_ellarc(ctx, xc, yc, xrad, yrad, beg_ang, end_ang, xor=false) {
 	// IGS stores beg_ang and end_ang as 0-360, but the ST wants 0-3600.
-	// IG217.c shows that Larry multiplies the angles by 10 
+	// IG217.c shows that Larry multiplies the angles by 10
 	// before passing them to the v_* functions.
 	const points = v_ellarc(xc, yc, xrad, yrad, beg_ang*10, end_ang*10);
 	// This a line, so set `ignore_patterns` to true
 	draw_points(ctx, points, xor, true);
 }
 
+
+function draw_ellpie(ctx, xc, yc, xrad, yrad, beg_ang, end_ang, xor=false) {
+	// IGS stores beg_ang and end_ang as 0-360, but the ST wants 0-3600.
+	// IG217.c shows that Larry multiplies the angles by 10
+	// before passing them to the v_* functions.
+	const points = v_ellpie(xc, yc, xrad, yrad, beg_ang*10, end_ang*10, false);
+	console.log(points);
+	// This a line, so set `ignore_patterns` to true
+	draw_points(ctx, points, xor, true);
+}
+
+
+function fill_ellpie(ctx, xc, yc, xrad, yrad, beg_ang, end_ang, xor=false) {
+	// IGS stores beg_ang and end_ang as 0-360, but the ST wants 0-3600.
+	// IG217.c shows that Larry multiplies the angles by 10
+	// before passing them to the v_* functions.
+	const points = v_ellpie(xc, yc, xrad, yrad, beg_ang*10, end_ang*10, true);
+	console.log(points);
+	draw_points(ctx, points, xor);
+}
 
 function draw_ellipse(ctx, xc, yc, xrad, yrad, xor=false) {
 	const user_resolution = get_res_from_history();
