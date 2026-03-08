@@ -59,12 +59,11 @@ let virtual_canvas = {
 		this.width = w;
 		this.height = h;
 		this.reset_data();
+		this.reset_buffer();
+		this.reset_memory();
 	},
 	reset_data: function() {
 		this.data = Array(this.height).fill().map(() => Array(this.width).fill(0));
-		this.buffer = [];
-		// IGS uses a blit memory that is the same size as the screen
-		this.memory = Array(this.height).fill().map(() => Array(this.width).fill(0));
 	},
 	reset_buffer: function() {
 		this.buffer_width = null;
@@ -72,6 +71,7 @@ let virtual_canvas = {
 		this.buffer = [];
 	},
 	reset_memory: function() {
+		// IGS uses a blit memory that is the same size as the screen
 		this.memory = Array(this.height).fill().map(() => Array(this.width).fill(0));;
 	},
 	set_palette: function(pal) {
@@ -1600,6 +1600,10 @@ const history = {
 					cmd_str += `G#R>${cmd.params.resolution},${cmd.params.sys_palette_flag}:\r\n`;
 					break;
 
+				case 'screen_clear':
+					cmd_str += `G#s>${cmd.params.type}:\r\n`;
+					break;
+
 				// I am now manually setting the colors within the tool commands.
 				case 'set_color':
 					// if (exp_fill_color !== cmd.params.color) {
@@ -1943,6 +1947,10 @@ const renderer = {
 		document.querySelector('.widget-tools select').value = tool_name;
 		document.querySelector('.widget-tools select').dispatchEvent(new Event('change'));
 	},
+	// IGS has 5 different screen-clearing types (VT52, VDI, etc). For now I won't distinguish, I'll just clear it all.
+	screen_clear: function(params) {
+		virtual_canvas.reset_data();
+	},
 	set_resolution: function(params) {
 		let resolution_slug = resolutions[params.resolution].slug;
 		set_resolution_palette(resolution_slug, params.palette_id, starting_new=false);
@@ -2151,8 +2159,6 @@ const renderer = {
 				virtual_canvas.save_blit(source_points);
 				break;
 			case 2:
-				console.log(virtual_canvas.memory);
-				console.log(virtual_canvas.last_blit_to_mem);
 				// Read entire memory to buffer
 				blit_read('memory', source_points);
 				break;
