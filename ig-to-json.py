@@ -262,9 +262,6 @@ def main(input_file=None, output_file=None):
 
 		# Draw polyline
 		if cmd == 'z':
-			print('f:')
-			print('len', out_params[0])
-			print(out_params[1:])
 
 			pts_len = out_params[0]
 			pts = out_params[1:]
@@ -274,7 +271,6 @@ def main(input_file=None, output_file=None):
 			for p in range(0, pts_len):
 				coords.append([pts[(2*p)], pts[(2*p)+1]])
 
-			print(coords)
 			out_cmds.append({
 				'action': 'draw_polyline',
 				'params': {
@@ -437,23 +433,35 @@ def main(input_file=None, output_file=None):
 		if cmd == 'G':
 			blit_type = out_params[0]
 			blit_mode = out_params[1]
-			# Right now I'm only supporting blit type 0 (screen-to-screen)
-			# But in the future we'll support the others.
-			if blit_type == 0:
-				coord_params = iter(out_params[2:])
-				coord_pairs = [[x, next(coord_params)] for x in coord_params]
-				out_cmds.append({
-					'action': 'blit',
-					'params': {
-						'type': blit_type,
-						'mode': blit_mode,
-						'source_points': [coord_pairs[0]],
-						'dest_points': coord_pairs[1:]
-					}
-				})
-				continue
-			else:
-				pass
+
+			source_points = []
+			dest_points = []
+
+			coord_params = iter(out_params[2:])
+			coord_pairs = [[x, next(coord_params)] for x in coord_params]
+
+			# Three blit types provide source _and_ dest points.
+			if blit_type == 0 or blit_type == 3 or blit_type == 4:
+				source_points = coord_pairs[0:2]
+				dest_points = coord_pairs[2:]
+			# Blit type 1 has only source coordinates
+			elif blit_type == 1:
+				source_points = coord_pairs
+			# Blit type 2 has only dest coordinates
+			elif blit_type == 2:
+				dest_points = coord_pairs
+
+			out_cmds.append({
+				'action': 'blit',
+				'params': {
+					'type': blit_type,
+					'mode': blit_mode,
+					'source_points': source_points,
+					'dest_points': dest_points,
+					'param_str': params,
+				}
+			})
+			continue
 
 
 		# DEFAULT CASE

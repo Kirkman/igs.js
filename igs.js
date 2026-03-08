@@ -42,13 +42,17 @@ let polygon_start_x = null;
 let polygon_start_y = null;
 
 let virtual_canvas = {
+	// Data/memory size equals the screen.
 	width: null,
 	height: null,
+	// Buffer changes size every time we blit
 	buffer_width: null,
 	buffer_height: null,
 	data: [], // actual screen data
 	buffer: [], // temporary buffer for blitting
-	memory: [], // blit memory
+	memory: [], // blit memory, same size as screen
+	// IGS explicitly tracks the G> type 1 params, so it can recall them for type 2.
+	last_blit_to_mem: [],
 	palette: [],
 	color: 0,
 	init_data: function(w, h) {
@@ -59,12 +63,16 @@ let virtual_canvas = {
 	reset_data: function() {
 		this.data = Array(this.height).fill().map(() => Array(this.width).fill(0));
 		this.buffer = [];
-		this.memory = [];
+		// IGS uses a blit memory that is the same size as the screen
+		this.memory = Array(this.height).fill().map(() => Array(this.width).fill(0));
 	},
 	reset_buffer: function() {
 		this.buffer_width = null;
 		this.buffer_height = null;
 		this.buffer = [];
+	},
+	reset_memory: function() {
+		this.memory = Array(this.height).fill().map(() => Array(this.width).fill(0));;
 	},
 	set_palette: function(pal) {
 		this.palette = [...pal];
@@ -99,15 +107,13 @@ let virtual_canvas = {
 	get_data: function() {
 		return this.data.flat();
 	},
-	// // Copy the virtual screen or the blit memory to a temporary buffer before blitting
-	// copy_to_memory: function(src) {
-	// 	if (src == 'virtual') {
-	// 		this.buffer = this.data.map(row => row.slice());
-	// 	}
-	// 	else if (src == 'memory') {
-	// 		this.buffer = this.memory.map(row => row.slice());
-	// 	}
-	// },
+	// IGS explicitly tracks the G> type 1 params to recall for type 2.
+	save_blit: function(src_pts) {
+		this.last_blit_to_mem = src_pts;
+	},
+	get_last_blit: function() {
+		return this.last_blit_to_mem;
+	},
 	copy_to_buffer: function(src, src_pts) {
 		this.reset_buffer();
 
@@ -1593,6 +1599,7 @@ const history = {
 				case 'set_resolution':
 					cmd_str += `G#R>${cmd.params.resolution},${cmd.params.sys_palette_flag}:\r\n`;
 					break;
+
 				// I am now manually setting the colors within the tool commands.
 				case 'set_color':
 					// if (exp_fill_color !== cmd.params.color) {
@@ -1600,12 +1607,15 @@ const history = {
 					// 	exp_fill_color = cmd.params.color;
 					// }
 					break;
+
 				case 'change_color':
 					cmd_str += `G#S>${cmd.params.index},${cmd.params.r},${cmd.params.g},${cmd.params.b}:\r\n`;
 					break;
+
 				case 'change_drawing_mode':
 					cmd_str += `G#M>${cmd.params.mode}:\r\n`;
 					break;
+
 				case 'change_pattern':
 					if (exp_pattern !== cmd.params.pattern || exp_border_flag !== cmd.params.border_flag) {
 						cmd_str += `G#A>${cmd.params.pattern},${cmd.params.border_flag}:\r\n`;
@@ -1613,6 +1623,7 @@ const history = {
 						exp_border_flag = cmd.params.border_flag;
 					}
 					break;
+
 				case 'draw_point':
 					if (exp_marker_color !== cmd.params.color) {
 						cmd_str += `G#C>0,${cmd.params.color}:\r\n`;
@@ -1622,6 +1633,7 @@ const history = {
 						cmd_str += `G#P>${point[0]},${point[1]}:\r\n`;
 					}
 					break;
+
 				case 'draw_line':
 					if (exp_line_color !== cmd.params.color) {
 						cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
@@ -1629,6 +1641,7 @@ const history = {
 					}
 					cmd_str += `G#L>${cmd.params.points[0][0]},${cmd.params.points[0][1]},${cmd.params.points[1][0]},${cmd.params.points[1][1]}:\r\n`;
 					break;
+
 				case 'draw_polyline':
 					if (exp_line_color !== cmd.params.color) {
 						cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
@@ -1658,8 +1671,8 @@ const history = {
 							}
 						}
 					}
-
 					break;
+
 				case 'draw_rect':
 					if (exp_fill_color !== cmd.params.color) {
 						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
@@ -1680,6 +1693,7 @@ const history = {
 					corner_x_coords = null;
 					corner_y_coords = null;
 					break;
+
 				case 'draw_polygon':
 					if (exp_fill_color !== cmd.params.color) {
 						cmd_str += `G#C>2,${cmd.params.color}:\r\n`;
@@ -1695,6 +1709,7 @@ const history = {
 						}
 					}
 					break;
+
 				// JoshDraw stores circles as ellipses with equal radii. 
 				// But to optimize for IG, we'll use the circle command when needed.
 				case 'draw_ellipse':
@@ -1727,31 +1742,36 @@ const history = {
 						cmd_str += `G#Q>${cmd.params.center[0]},${cmd.params.center[1]},${cmd.params.x_radius},${cmd.params.y_radius}:\r\n`;
 					}
 					break;
+
+				// Now supports all 5 types of blits.
 				case 'blit':
-					// Right now I only support screen-to-screen blitting (type=0).
+					// All blit types except 2 have source coordinates.
+					if (cmd.params.type != 2) {
+						// SORT THE CORNER COORDINATES.
+						// We need to ensure that the upper left corner's coordinates come first and the lower right coords come second.
+						// This is a good practice because JoshDraw lets users extend the rectangle in any direction from the origin click,
+						// whereas the IGS manual specifies upper left should come first. This may not be an issue with the Box command,
+						// but I have seen it result in bugs with the Blit/Grab command.
+						corner_x_coords = [cmd.params.source_points[0][0], cmd.params.source_points[1][0]].sort((a, b) => a - b);
+						corner_y_coords = [cmd.params.source_points[0][1], cmd.params.source_points[1][1]].sort((a, b) => a - b);
 
-					// SORT THE CORNER COORDINATES.
-					// We need to ensure that the upper left corner's coordinates come first and the lower right coords come second.
-					// This is a good practice because JoshDraw lets users extend the rectangle in any direction from the origin click,
-					// whereas the IGS manual specifies upper left should come first. This may not be an issue with the Box command,
-					// but I have seen it result in bugs with the Blit/Grab command.
-					corner_x_coords = [cmd.params.source_points[0][0], cmd.params.source_points[1][0]].sort((a, b) => a - b);
-					corner_y_coords = [cmd.params.source_points[0][1], cmd.params.source_points[1][1]].sort((a, b) => a - b);
-
-					cmd_str += `G#G>${cmd.params.type},${cmd.params.mode},${corner_x_coords[0]},${corner_y_coords[0]},${corner_x_coords[1]},${corner_y_coords[1]}`;
+						cmd_str += `G#G>${cmd.params.type},${cmd.params.mode},${corner_x_coords[0]},${corner_y_coords[0]},${corner_x_coords[1]},${corner_y_coords[1]}`;
+					}
+					else {
+						cmd_str += `G#G>${cmd.params.type},${cmd.params.mode}`;
+					}
 
 					// Prevent these values from being repeated in future loop iterations.
 					corner_x_coords = null;
 					corner_y_coords = null;
 
-					for (let p=0; p<cmd.params.dest_points.length; p++) {
-						cmd_str += `,${cmd.params.dest_points[p][0]},${cmd.params.dest_points[p][1]}`;
-						// If we're at the last command, then use the terminator and line breaks
-						if (p == cmd.params.dest_points.length - 1) {
-							cmd_str += `:\r\n`;
-						}
+					// All blit types except 1 have destination coordinates.
+					if (cmd.params.type != 1) {
+						cmd_str += `,${cmd.params.dest_points[0][0]},${cmd.params.dest_points[0][1]}`;
 					}
+					cmd_str += `:\r\n`;
 					break;
+
 				// I STUPIDLY DIDN'T IMPLEMENT "FONT" AS A PARAM OF WRITE_TEXT BEFORE
 				// ALLOWING OTHER PEOPLE TO USE THIS EDITOR.
 				// So for now, I _have_ to process `change_font`. But I'm going to update this
@@ -1766,6 +1786,7 @@ const history = {
 						exp_text_rotation = cmd.params.rotation;
 					}
 					break;
+
 				// SEE ABOVE ABOUT CHANGE_FONT AND "FONT" PARAM.
 				case 'write_text':
 					// Don't export this command if there's no text.
@@ -2086,6 +2107,16 @@ const renderer = {
 	blit: function(params) {
 		this.update_tool('blit');
 
+		let source_points = [];
+
+		// Blit type 2 uses whatever the last Type 1 coordinates were.
+		// So if you blit a small rect to mem with Type 1, then use Type 2,
+		// it will blit only that small rect back to screen.
+		if (params.type == 2) {
+			source_points = virtual_canvas.get_last_blit();
+		}
+		// Otherwise, use the provided `source_points` parameter
+		else {
 			// Force source point coordinates to be arranged top left to bottom right.
 			const source_x0 = Math.min(params.source_points[0][0], params.source_points[1][0]);
 			const source_x1 = Math.max(params.source_points[0][0], params.source_points[1][0]);
@@ -2093,14 +2124,81 @@ const renderer = {
 			const source_y0 = Math.min(params.source_points[0][1], params.source_points[1][1]);
 			const source_y1 = Math.max(params.source_points[0][1], params.source_points[1][1]);
 
-			params.source_points = [
+			source_points = [
 				[source_x0, source_y0],
 				[source_x1, source_y1],
 			];
+		}
 
-		blit_read('virtual', params.source_points);
 
-		blit_write('virtual', params.source_points, params.dest_points, params.mode);
+		// G> 0, 3, 0,0,100,100,100,50:   scr -> scr        sx1,sy1,sx2,sy2,dx1,dy1
+		// G> 1, 3, 0,0,100,100:          scr -> mem        sx1,sy1,sx2,sy2
+		// G> 2, 3, 200,50:               mem -> scr        dx1,dy1
+		// G> 3, 3, 50,50,75,75,150,100:  piece mem -> scr  sx1,sy1,sx2,sy2,dx1,dy1
+		// G> 4, 3, 50,50,75,75,150,100:  mem -> mem        sx1,sy1,sx2,sy2,dx1,dy1
+
+		// Depending on the blit type, we need to read a piece
+		// (or ALL) of screen or memory into the buffer.
+		switch(params.type) {
+			case 0:
+				// Read from screen to buffer
+				blit_read('virtual', source_points);
+				break;
+			case 1:
+				// Read from screen to buffer
+				blit_read('virtual', source_points);
+				// IGS explicitly tracks the G> type 1 params, to recall for type 2.
+				virtual_canvas.save_blit(source_points);
+				break;
+			case 2:
+				console.log(virtual_canvas.memory);
+				console.log(virtual_canvas.last_blit_to_mem);
+				// Read entire memory to buffer
+				blit_read('memory', source_points);
+				break;
+			case 3:
+				// Read piece of memory to buffer
+				blit_read('memory', source_points);
+				break;
+			case 4:
+				// Read piece of memory to buffer
+				blit_read('memory', source_points);
+				break;
+		}
+
+		// Now that the buffer is populated, get its dimensions.
+		buffer_points = [
+			[0, 0],
+			[virtual_canvas.buffer_width-1, virtual_canvas.buffer_height-1]
+		];
+
+		// Depending on the blit type, we need to write the buffer
+		// to the screen or memory.
+		switch(params.type) {
+			case 0:
+				// Write buffer to screen
+				blit_write('virtual', buffer_points, params.dest_points, params.mode);
+				break;
+			case 1:
+				// Write buffer to memory
+				// IGS internally writes this blit to the same coords in memory as the source screen coords.
+				blit_write('memory', buffer_points, source_points, params.mode);
+				break;
+			case 2:
+				// Write buffer to screen
+				blit_write('virtual', buffer_points, params.dest_points, params.mode);
+				break;
+			case 3:
+				// Write buffer to screen
+				blit_write('virtual', buffer_points, params.dest_points, params.mode);
+				break;
+			case 4:
+				// Write buffer to memory
+				blit_write('memory', buffer_points, params.dest_points, params.mode);
+				break;
+		}
+
+
 	},
 
 
@@ -3382,6 +3480,9 @@ function set_pixel(ctx, x, y, idx=null) {
 	if (ctx == 'virtual') {
 		virtual_canvas.set_pixel(x, y, idx);
 	}
+	else if (ctx == 'memory') {
+		virtual_canvas.set_memory_pixel(x, y, idx);
+	}
 	else {
 		ctx.fillRect(x, y, 1, 1);
 	}
@@ -3760,6 +3861,7 @@ const LOGICAL_OPS = [
 	(S, D) => 1,           // 15
 ];
 
+
 // Clone the source canvas before writing the blit, so we don't overwrite it in place.
 // Breaking this out separately allows to avoid doing it repeatedly on mousemove.
 function blit_read(src_ctx, src_pts) {
@@ -3773,11 +3875,11 @@ function blit_read(src_ctx, src_pts) {
 // IGS GRAB COMMAND
 // ----------------
 //
-// G#G>  0,  3,  0,0,100,100,100,50:    screen to screen            sx1,sy1,sx2,sy2,dx1,dy1
-// G#G>  1,  3,  0,0,100,100:           screen to memory            sx1,sy1,sx2,sy2
-// G#G>  2,  3,  200,50:                memory to screen            dx1,dy1
-// G#G>  3,  3,  50,50,75,75,150,100:   piece of memory to screen   sx1,sy1,sx2,sy2,dx1,dy1
-// G#G>  4,  3,  50,50,75,75,150,100:   memory to memory            sx1,sy1,sx2,sy2,dx1,dy1
+// G>  0,  3,  0,0,100,100,100,50:    scr to scr         sx1,sy1,sx2,sy2,dx1,dy1
+// G>  1,  3,  0,0,100,100:           scr to mem         sx1,sy1,sx2,sy2
+// G>  2,  3,  200,50:                mem to scr         dx1,dy1
+// G>  3,  3,  50,50,75,75,150,100:   piece mem to scr   sx1,sy1,sx2,sy2,dx1,dy1
+// G>  4,  3,  50,50,75,75,150,100:   mem to mem         sx1,sy1,sx2,sy2,dx1,dy1
 
 
 // The actual blit process -- read each source and destination pixel,
@@ -3791,6 +3893,10 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 	if (dest_ctx == 'virtual') {
 		cw = virtual_canvas.width;
 		ch = virtual_canvas.height;
+	}
+	else if (dest_ctx == 'memory') {
+		cw = virtual_canvas.memory_width;
+		ch = virtual_canvas.memory_height;
 	}
 	else {
 		cw = dest_ctx.canvas.width;
@@ -3839,7 +3945,13 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 			// https://bitsavers.computerhistory.org/pdf/atari/ST/Atari_ST_GEM_Programming_1986/GEM_0174.pdf
 
 			const S = color_idx_to_pixel_val( virtual_canvas.get_buffer_pixel(x, y) );
-			const D = color_idx_to_pixel_val( virtual_canvas.get_pixel(dx, dy) );
+			let D;
+			if (dest_ctx == 'memory') {
+				D = color_idx_to_pixel_val( virtual_canvas.get_memory_pixel(dx, dy) );
+			}
+			else {
+				D = color_idx_to_pixel_val( virtual_canvas.get_pixel(dx, dy) );
+			}
 
 			// The result of the logical operation needs to be
 			// converted from pixel values back to color indices.
@@ -3855,7 +3967,6 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 			set_pixel(dest_ctx, dx, dy, new_idx);
 		}
 	}
-
 }
 
 
