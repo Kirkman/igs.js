@@ -1975,6 +1975,11 @@ const renderer = {
 		// // This is probably unnecessary since this gets set in the click handler.
 		// set_color(params.color, context, 1);
 	},
+	check_color: function(c) {
+		if (virtual_canvas.color != c) {
+			this.set_color({color: c});
+		}
+	},
 	change_color: function(params) {
 		change_palette_color(context, params.index, [params.r, params.g, params.b]);
 	},
@@ -2001,6 +2006,7 @@ const renderer = {
 		this.update_tool('draw_point');
 		// My command history includes a `color` param, but I probably shouldn't be including that. 
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
+		this.check_color(params.color);
 
 		// Draw the point
 		for (point of params.points) {
@@ -2013,6 +2019,7 @@ const renderer = {
 		this.update_tool('draw_line');
 		// My command history includes a `color` param, but I probably shouldn't be including that. 
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
+		this.check_color(params.color);
 
 		// Draw the line
 		draw_line('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
@@ -2021,6 +2028,7 @@ const renderer = {
 		this.update_tool('draw_polyline');
 		// My command history includes a `color` param, but I probably shouldn't be including that. 
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
+		this.check_color(params.color);
 
 		draw_polyline('virtual', params.points);
 	},
@@ -2028,6 +2036,7 @@ const renderer = {
 		this.update_tool('draw_rect');
 		// My command history includes a `color` param, but I probably shouldn't be including that. 
 		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
+		this.check_color(params.color);
 
 		// Draw rounded corners, if corner_flag is set
 		if (params.corner_flag) {
@@ -2058,6 +2067,7 @@ const renderer = {
 	draw_curve: function(params) {
 		// NOT IMPLEMENTED IN THE UI YET.
 		// this.update_tool('draw_curve');
+		this.check_color(params.color);
 
 		// If the radii are equal, treat this as an arc not an elliptical arc.
 		if (params.x_radius == params.y_radius) {
@@ -2080,6 +2090,7 @@ const renderer = {
 	draw_slice: function(params) {
 		// NOT IMPLEMENTED IN THE UI YET.
 		// this.update_tool('draw_slice');
+		this.check_color(params.color);
 
 		// If the radii are equal, treat this as a circular pie slice not an elliptical pie slice.
 		if (params.x_radius == params.y_radius) {
@@ -2115,6 +2126,7 @@ const renderer = {
 	// if not, we'll use ellipse-specific functions.
 	draw_ellipse: function(params) {
 		this.update_tool('draw_ellipse');
+		this.check_color(params.color);
 
 		// If the radii are equal, treat this as a circle not an ellipse.
 		if (params.x_radius == params.y_radius) {
@@ -2140,6 +2152,7 @@ const renderer = {
 
 	draw_polygon: function(params) {
 		this.update_tool('draw_polygon');
+		this.check_color(params.color);
 
 		// Fill the polygon
 		fill_poly('virtual', params.points);
@@ -2266,6 +2279,7 @@ const renderer = {
 	},
 	write_text: function(params) {
 		this.update_tool('write_text');
+		this.check_color(params.color);
 
 		// Put text on the screen
 		write_text_vdi('virtual', params.text, params.points);
