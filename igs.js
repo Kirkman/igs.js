@@ -2004,8 +2004,6 @@ const renderer = {
 	},
 	draw_point: function(params) {
 		this.update_tool('draw_point');
-		// My command history includes a `color` param, but I probably shouldn't be including that. 
-		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 		this.check_color(params.color);
 
 		// Draw the point
@@ -2017,8 +2015,6 @@ const renderer = {
 	},
 	draw_line: function(params) {
 		this.update_tool('draw_line');
-		// My command history includes a `color` param, but I probably shouldn't be including that. 
-		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 		this.check_color(params.color);
 
 		// Draw the line
@@ -2026,16 +2022,12 @@ const renderer = {
 	},
 	draw_polyline: function(params) {
 		this.update_tool('draw_polyline');
-		// My command history includes a `color` param, but I probably shouldn't be including that. 
-		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 		this.check_color(params.color);
 
 		draw_polyline('virtual', params.points);
 	},
 	draw_rect: function(params) {
 		this.update_tool('draw_rect');
-		// My command history includes a `color` param, but I probably shouldn't be including that. 
-		// For now I will ignore it in the renderer. If all is fine, then I'll strip that out.
 		this.check_color(params.color);
 
 		// Draw rounded corners, if corner_flag is set
