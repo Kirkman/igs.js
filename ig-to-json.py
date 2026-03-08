@@ -29,7 +29,6 @@ def main(input_file=None, output_file=None):
 	pattern = None
 	border_flag = None
 
-
 	with open(input_file, 'r') as f:
 		ig_text = f.read()
 
@@ -121,6 +120,16 @@ def main(input_file=None, output_file=None):
 			})
 			continue
 
+		# Screen clear
+		if cmd == 's':
+			out_cmds.append({
+				'action': 'screen_clear',
+				'params': {
+					'type': out_params[0],
+				}
+			})
+			continue
+
 		# Drawing mode.
 		if cmd == 'M':
 			out_cmds.append({
@@ -129,6 +138,35 @@ def main(input_file=None, output_file=None):
 					'mode': out_params[0],
 				}
 			})
+			continue
+
+		# Hollow circle switch.
+		# The JoshDraw UI does not use the "hollow" command.
+		# Instead we'll manually set an empty fill and activate border.
+		if cmd == 'H':
+			print(out_params)
+			# 0 -- HOLLOW OFF -- filled circle
+			if out_params[0] == 0:
+				# Revert to whatever attribute settings we had before.
+				out_cmds.append({
+					'action': 'change_pattern',
+					'params': {
+						'pattern': pattern,
+						'border_flag': border_flag,
+					}
+				})
+			# 1 -- HOLLOW ON -- empty circle
+			elif out_params[0] == 1:
+				# Change attributes to empty fill with border.
+				out_cmds.append({
+					'action': 'change_pattern',
+					'params': {
+						'pattern': '0,1',
+						'border_flag': 1,
+					}
+				})
+			else:
+				print('DID NOT PARSE HOLLOW')
 			continue
 
 		# Fill attributes.
@@ -347,6 +385,25 @@ def main(input_file=None, output_file=None):
 					'end_ang': out_params[4],
 				}
 			})
+			continue
+
+
+		# Draw pieslice
+		# JoshDraw uses `draw_slice` for both pieslices and elliptical pieslices.
+		if cmd == 'V':
+			out_cmds.append({
+				'action': 'draw_slice',
+				'params': {
+					'color': fill_color,
+					'center': [out_params[0], out_params[1]],
+					# Circular "pieslice" is just an elliptical pieslice with identical x/y radius.
+					'x_radius': out_params[2],
+					'y_radius': out_params[2],
+					'beg_ang': out_params[3],
+					'end_ang': out_params[4],
+				}
+			})
+			continue
 
 
 		# Draw circle/disc.
@@ -369,6 +426,22 @@ def main(input_file=None, output_file=None):
 		if cmd == 'J':
 			out_cmds.append({
 				'action': 'draw_curve',
+				'params': {
+					'color': fill_color,
+					'center': [out_params[0], out_params[1]],
+					'x_radius': out_params[2],
+					'y_radius': out_params[3],
+					'beg_ang': out_params[4],
+					'end_ang': out_params[5],
+				}
+			})
+			continue
+
+
+		# Draw elliptical pieslice
+		if cmd == 'Y':
+			out_cmds.append({
+				'action': 'draw_slice',
 				'params': {
 					'color': fill_color,
 					'center': [out_params[0], out_params[1]],
