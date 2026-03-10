@@ -1,11 +1,11 @@
 @font-face {
-  font-family: 'igs-patterns';
-  src: url('../font/igs-patterns.eot?48962610');
-  src: url('../font/igs-patterns.eot?48962610#iefix') format('embedded-opentype'),
-       url('../font/igs-patterns.woff2?48962610') format('woff2'),
-       url('../font/igs-patterns.woff?48962610') format('woff'),
-       url('../font/igs-patterns.ttf?48962610') format('truetype'),
-       url('../font/igs-patterns.svg?48962610#igs-patterns') format('svg');
+  font-family: 'fontello';
+  src: url('../font/fontello.eot?64710451');
+  src: url('../font/fontello.eot?64710451#iefix') format('embedded-opentype'),
+       url('../font/fontello.woff2?64710451') format('woff2'),
+       url('../font/fontello.woff?64710451') format('woff'),
+       url('../font/fontello.ttf?64710451') format('truetype'),
+       url('../font/fontello.svg?64710451#fontello') format('svg');
   font-weight: normal;
   font-style: normal;
 }
@@ -14,13 +14,13 @@
 /*
 @media screen and (-webkit-min-device-pixel-ratio:0) {
   @font-face {
-    font-family: 'igs-patterns';
-    src: url('../font/igs-patterns.svg?48962610#igs-patterns') format('svg');
+    font-family: 'fontello';
+    src: url('../font/fontello.svg?64710451#fontello') format('svg');
   }
 }
 */
 [class^="icon-"]:before, [class*=" icon-"]:before {
-  font-family: "igs-patterns";
+  font-family: "fontello";
   font-style: normal;
   font-weight: normal;
   speak: never;
@@ -70,3 +70,25 @@
 .icon-13-medium-spaced-vertical:before { content: '\e80d'; } /* '' */
 .icon-14-medium-spaced-horizontal:before { content: '\e80e'; } /* '' */
 .icon-15-medium-spaced-cross:before { content: '\e80f'; } /* '' */
+.icon-16-brick:before { content: '\e810'; } /* '' */
+.icon-17-diagonal-bricks:before { content: '\e811'; } /* '' */
+.icon-18-grass:before { content: '\e812'; } /* '' */
+.icon-19-trees:before { content: '\e813'; } /* '' */
+.icon-20-dashed-x:before { content: '\e814'; } /* '' */
+.icon-21-cobble-stones:before { content: '\e815'; } /* '' */
+.icon-22-sand:before { content: '\e816'; } /* '' */
+.icon-23-rough-weave:before { content: '\e817'; } /* '' */
+.icon-24-quilt:before { content: '\e818'; } /* '' */
+.icon-25-patterned-cross:before { content: '\e819'; } /* '' */
+.icon-26-balls:before { content: '\e81a'; } /* '' */
+.icon-27-vertical-scales:before { content: '\e81b'; } /* '' */
+.icon-28-diagonal-scales:before { content: '\e81c'; } /* '' */
+.icon-29-checker-board:before { content: '\e81d'; } /* '' */
+.icon-30-filled-diamond:before { content: '\e81e'; } /* '' */
+.icon-31-herringbone:before { content: '\e81f'; } /* '' */
+.icon-32-wide-+45-deg:before { content: '\e820'; } /* '' */
+.icon-33-widely-spaced-thick-45-deg:before { content: '\e821'; } /* '' */
+.icon-34-widely-+--45-deg:before { content: '\e822'; } /* '' */
+.icon-35-widely-spaced-vertical:before { content: '\e823'; } /* '' */
+.icon-36-widely-spaced-horizontal:before { content: '\e824'; } /* '' */
+.icon-37-widely-spaced-horizontal_vert-cross:before { content: '\e825'; } /* '' */
