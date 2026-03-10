@@ -90,7 +90,7 @@ let virtual_canvas = {
 		return this.palette.map(color => atari_to_rgb(color));
 	},
 	get_rgb_palette_color: function(i) {
-		return this.palette.map(color => atari_to_rgb(color))[i];
+		return atari_to_rgb(this.palette[i]);
 	},
 	set_color: function(c) {
 		this.color = c;
@@ -3885,66 +3885,19 @@ function write_text_vdi(ctx, text, points) {
 }
 
 
-function color_idx_to_pixel_val(c) {
-	if (virtual_canvas.get_palette().length == 16) {
-		if (c == 0) { return 0; }
-		else if (c == 1) { return 15; }
-		else if (c == 2) { return 1; }
-		else if (c == 3) { return 2; }
-		else if (c == 4) { return 4; }
-		else if (c == 5) { return 6; }
-		else if (c == 6) { return 3; }
-		else if (c == 7) { return 5; }
-		else if (c == 8) { return 7; }
-		else if (c == 9) { return 8; }
-		else if (c == 10) { return 9; }
-		else if (c == 11) { return 10; }
-		else if (c == 12) { return 12; }
-		else if (c == 13) { return 14; }
-		else if (c == 14) { return 11; }
-		else if (c == 15 ) { return 13; }		
-	}
-	// THIS IS A GUESS. THE REFERENCE BOOKS ONLY GIVE TABLES FOR 8-bit and 16-bit PALETTES.
-	// NEED TO DOUBLE-CHECK ON REAL ATARI.
-	else if (virtual_canvas.get_palette().length == 4) {
-		if (c == 0) { return 0; }
-		else if (c == 1) { return 3; }
-		else if (c == 2) { return 1; }
-		else if (c == 3) { return 2; }
-	}
-	debug(`COULD NOT CONVERT color index ${c} to a pixel value`);
-}
+// Pre-build lookup tables for color_idx_to_pixel_val() (instead of big if-else trees)
+const IDX_TO_PIXEL_16 = [0,15,1,2,4,6,3,5,7,8,9,10,12,14,11,13];
+const PIXEL_TO_IDX_16 = [0,2,3,6,4,7,5,8,9,10,11,14,12,15,13,1];
+const IDX_TO_PIXEL_4 = [0,3,1,2];
+const PIXEL_TO_IDX_4 = [0,2,3,1];
 
+// function color_idx_to_pixel_val(c) {
+// 	return virtual_canvas.get_palette().length === 4 ? IDX_TO_PIXEL_4[c] : IDX_TO_PIXEL_16[c];
+// }
 
-function pixel_val_to_color_idx(c) {
-	if (virtual_canvas.get_palette().length == 16) {
-		if (c == 0) { return 0; }
-		else if (c == 15) { return 1; }
-		else if (c == 1) { return 2; }
-		else if (c == 2) { return 3; }
-		else if (c == 4) { return 4; }
-		else if (c == 6) { return 5; }
-		else if (c == 3) { return 6; }
-		else if (c == 5) { return 7; }
-		else if (c == 7) { return 8; }
-		else if (c == 8) { return 9; }
-		else if (c == 9) { return 10; }
-		else if (c == 10) { return 11; }
-		else if (c == 12) { return 12; }
-		else if (c == 14) { return 13; }
-		else if (c == 11) { return 14; }
-		else if (c ==  13) { return 15; }
-}
-	// THIS IS AN EDUCATED GUESS. THE REFERENCE BOOKS ONLY GIVE TABLES FOR 8-bit AND 16-bit PALETTES.
-	else if (virtual_canvas.get_palette().length == 4) {
-		if (c == 0) { return 0; }
-		else if (c == 3) { return 1; }
-		else if (c == 1) { return 2; }
-		else if (c == 2) { return 3; }
-	}
-	debug(`COULD NOT CONVERT pixel value ${c} to a color index`);
-}
-
+// function pixel_val_to_color_idx(c) {
+// 	return virtual_canvas.get_palette().length === 4 ? PIXEL_TO_IDX_4[c] : PIXEL_TO_IDX_16[c];
+// }
 
 // Pre-build the logical operation lookup table once
 const LOGICAL_OPS = [
@@ -4038,6 +3991,16 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 			const dx = x + dest_x0;
 			if (dx < 0 || dx >= cw) { continue; }
 
+
+			// To avoid looking up the palette size on every pixel, 
+			// let's just look it up now, and pre-pick the correct 
+			// idx->pixel lookup table for this palette size.
+			const is_medium = virtual_canvas.get_palette().length === 4;
+			const color_idx_to_pixel_val = is_medium ? IDX_TO_PIXEL_4 : IDX_TO_PIXEL_16;
+			const pixel_val_to_color_idx = is_medium ? PIXEL_TO_IDX_4 : PIXEL_TO_IDX_16;
+
+
+
 			// Get the source and destination pixels.
 
 			// NOTE: I am storing these in virtual_canvas as color indices.
@@ -4049,25 +4012,27 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 			// https://www.atarimagazines.com/v4n12/ControlGEM.php
 			// https://bitsavers.computerhistory.org/pdf/atari/ST/Atari_ST_GEM_Programming_1986/GEM_0174.pdf
 
-			const S = color_idx_to_pixel_val( virtual_canvas.get_buffer_pixel(x, y) );
+			const S = color_idx_to_pixel_val[ virtual_canvas.get_buffer_pixel(x, y) ];
 			let D;
 			if (dest_ctx == 'memory') {
-				D = color_idx_to_pixel_val( virtual_canvas.get_memory_pixel(dx, dy) );
+				D = color_idx_to_pixel_val[ virtual_canvas.get_memory_pixel(dx, dy) ];
 			}
 			else {
-				D = color_idx_to_pixel_val( virtual_canvas.get_pixel(dx, dy) );
+				D = color_idx_to_pixel_val[ virtual_canvas.get_pixel(dx, dy) ];
 			}
 
 			// The result of the logical operation needs to be
 			// converted from pixel values back to color indices.
-			const new_idx = pixel_val_to_color_idx(
+			const new_idx = pixel_val_to_color_idx[
 				// Perform the logical operation
 				op(S, D) & bitmask
-			);
+			];
 
-			// To make the blit rectangle show up on mousemove, 
-			// I have to explicitly set the color here.
-			set_color(new_idx, dest_ctx);
+			// To make the blit rectangle show up on mousemove, I have to explicitly set the color here. 
+			// But _only_ with actual HTML contexts.
+			if (dest_ctx != 'memory' && dest_ctx != 'virtual') {
+				set_color(new_idx, dest_ctx);
+			}
 
 			set_pixel(dest_ctx, dx, dy, new_idx);
 		}
