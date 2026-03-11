@@ -838,7 +838,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			}
 			// Otherwise check if this is a valid click.
 			if (current_tool !== null && current_tool !== 'draw_point') {
-				debug(`Event Listener: Click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 				tool_functions[current_tool].onclick(event);
 			}
 			return false;
@@ -863,7 +862,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 		}, false);
 		display.addEventListener('mouseup', function(event) {
 			if (current_tool !== null && current_tool == 'draw_point') {
-				debug(`Event Listener: Mouseup\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 				event.stopPropagation();
 				event.preventDefault();
 				if (mouse_is_dragging == true) {
@@ -901,7 +899,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	// 	}, false);
 	// 	display.addEventListener('touchend', function(event) {
 	// 		if (current_tool !== null && current_tool == 'draw_point') {
-	// 			debug(`Event Listener: Mouseup\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 	// 			event.stopPropagation();
 	// 			event.preventDefault();
 	// 			if (mouse_is_dragging == true) {
@@ -930,9 +927,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 	// 			if (px <= screen_width && py <= screen_height) {
 	// 				// if (current_tool !== null) {
-	// 				// 	if (debug_mousemove == true) {
-	// 				// 		debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-	// 				// 	}
 	// 				// 	tool_functions[current_tool].mousemove(event);
 	// 				// }
 	// 				if (current_tool !== null && current_tool == 'draw_point') {
@@ -971,7 +965,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			event.stopPropagation();
 			event.preventDefault();
 			if (current_tool !== null) {
-				debug(`Event Listener: Right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 				tool_functions[current_tool].onrightclick(event);
 			}
 			return false;
@@ -991,9 +984,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 				if (px <= screen_width && py <= screen_height) {
 					if (current_tool !== null) {
-						if (debug_mousemove == true) {
-							debug(`Event Listener: Mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-						}
 						tool_functions[current_tool].mousemove(event);
 					}
 					if (current_tool !== null && current_tool == 'draw_point') {
@@ -1306,7 +1296,6 @@ window.addEventListener('keydown', function(event) {
 			event.preventDefault();
 			event.stopImmediatePropagation();
 
-			debug(`Event Listener: Write_text\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 			tool_functions[current_tool].keydown(event);
 		}
 	}
@@ -2316,8 +2305,6 @@ const tool_functions = {
 		points: [],
 		init: function() {},
 		onclick: function(event) {
-			debug(`draw_point click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2353,10 +2340,6 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			if (debug_mousemove == true) {
-				debug(`draw_point mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 
@@ -2371,8 +2354,6 @@ const tool_functions = {
 			update_status(px, py);
 		},
 		ondrag: function(event) {
-			debug(`draw_point drag\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			if (current_state == 'start' || current_state == null) {
 				current_state = 'drawing';
 			}
@@ -2428,7 +2409,6 @@ const tool_functions = {
 
 		},
 		ondragend: function(event) {
-			debug(`draw_point dragend\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2465,8 +2445,6 @@ const tool_functions = {
 	draw_line: {
 		init: function() {},
 		onclick: function(event) {
-			debug(`draw_line click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2523,10 +2501,6 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			if (debug_mousemove == true) {
-				debug(`draw_line mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2559,8 +2533,6 @@ const tool_functions = {
 		points: [],
 		init: function() {},
 		onclick: function(event) {
-			debug(`draw_polyline click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2592,8 +2564,6 @@ const tool_functions = {
 		// }, 
 		// When we see a right click, that's the end of this polyline.
 		onrightclick: function(event) {
-			debug(`draw_polyline right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			// Clear live-drawing canvas
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
 
@@ -2621,10 +2591,6 @@ const tool_functions = {
 
 		},
 		mousemove: function(event) {
-			if (debug_mousemove == true) {
-				debug(`draw_polyline mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2663,8 +2629,6 @@ const tool_functions = {
 		corner_flag: false, // hard-coded for now
 		init: function() {},
 		onclick: function(event) {
-			debug(`draw_rect click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2727,8 +2691,6 @@ const tool_functions = {
 		// }, 
 		// When we see a right click, we need to cancel the rectangle.
 		onrightclick: function(event) {
-			debug(`draw_rect right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2749,10 +2711,6 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			if (debug_mousemove == true) {
-				debug(`draw_rect mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2799,18 +2757,13 @@ const tool_functions = {
 		radius: null,
 		init: function() {},
 		onclick: function(event) {
-			debug(`draw_curve click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 		},
 		// ondblclick: function(event) {
 		// }, 
 		// When we see a right click, we need to cancel the circle.
 		onrightclick: function(event) {
-			debug(`draw_curve right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
 		},
 		mousemove: function(event) {
-			if (debug_mousemove == true) {
-				debug(`draw_curve mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
 		}
 	},
 
@@ -2821,8 +2774,6 @@ const tool_functions = {
 		y_radius: null,
 		init: function() {},
 		onclick: function(event) {
-			debug(`draw_ellipse click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2889,8 +2840,6 @@ const tool_functions = {
 		// }, 
 		// When we see a right click, we need to cancel the ellipse.
 		onrightclick: function(event) {
-			debug(`draw_ellipse right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2960,8 +2909,6 @@ const tool_functions = {
 		points: [],
 		init: function() {},
 		onclick: function(event) {
-			debug(`draw_polygon click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -2998,8 +2945,6 @@ const tool_functions = {
 		// }, 
 		// When we see a right click, it's time to close this polygon.
 		onrightclick: function(event) {
-			debug(`draw_polygon right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -3135,8 +3080,6 @@ const tool_functions = {
 
 		},
 		onclick: function(event) {
-			debug(`blit click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -3229,8 +3172,6 @@ const tool_functions = {
 		// }, 
 		// When we see a right click, we need to cancel the rectangle.
 		onrightclick: function(event) {
-			debug(`blit right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -3256,10 +3197,6 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			if (debug_mousemove == true) {
-				debug(`blit mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -3355,8 +3292,6 @@ const tool_functions = {
 			renderer.render();
 		},
 		onclick: function(event) {
-			debug(`write_text click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -3384,8 +3319,6 @@ const tool_functions = {
 		},
 		// When we see a right click, we need to cancel the text.
 		onrightclick: function(event) {
-			debug(`write_text right-click\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -3406,10 +3339,6 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			if (debug_mousemove == true) {
-				debug(`write_text mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -3427,8 +3356,6 @@ const tool_functions = {
 			update_status(px, py);
 		},
 		keydown: function(event) {
-			debug(`write_text keydown\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
 
 			if (event.key == 'Spacebar') {
@@ -3557,9 +3484,6 @@ function atari_to_rgb(color_array) {
 
 function set_color(color_index, ctx, opacity=1) {
 	const color_rgb = virtual_canvas.get_rgb_palette_color(color_index);
-
-	debug(`set_color()  |  Index: ${color_index}  |  Color: ${color_rgb}`);
-
 	ctx.fillStyle = `rgba(${color_rgb[0]}, ${color_rgb[1]}, ${color_rgb[2]}, ${opacity})`;
 }
 
@@ -3626,16 +3550,12 @@ function fill_pixel(ctx, x, y) {
 	// Ignore off-canvas pixels.
 	if (x < 0 || y < 0 || x >= virtual_canvas.width || y >= virtual_canvas.height) { return; }
 
-	// debug(`------------------------------`);
-	// debug(`fill_pixel | x: ${x}, y: ${y}`);
 	let end_idx = current_pattern.array.length;
 
 	// The actual pattern data is only 16x16. 
 	// These modulos let us check pixels that fall outside that range (e.g. negative, or > 16)
 	let px = ((x % end_idx) + end_idx) % end_idx;
 	let py = ((y % end_idx) + end_idx) % end_idx;
-
-	// debug(`fill_pixel | px: ${px}, py: ${py}`);
 
 	if (current_pattern.array[py][px] == 1) {
 		set_pixel(ctx, x, y);
