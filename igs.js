@@ -41,7 +41,8 @@ let last_loupe_y = null;
 let polygon_start_x = null;
 let polygon_start_y = null;
 
-let virtual_canvas = {
+
+const virtual_canvas = {
 	// Data/memory size equals the screen.
 	width: null,
 	height: null,
@@ -182,6 +183,37 @@ let virtual_canvas = {
 	}
 }
 
+// Object for combining individual pixel updates for an HTML canvas into one batch update.
+const batch_update = {
+	width: null,
+	height: null,
+	ctx: null,
+	img_data: null,
+	rgb_palette: null,
+	begin: function(ctx) {
+		this.width = ctx.canvas.width;
+		this.height = ctx.canvas.height;
+		this.ctx = ctx;
+		this.image_data = ctx.createImageData(this.width, this.height);
+		this.rgb_palette = virtual_canvas.get_rgb_palette();
+	},
+	end: function() {
+		this.ctx.putImageData(this.image_data, 0, 0);
+		this.width = null;
+		this.height = null;
+		this.ctx = null;
+		this.image_data = null;
+		this.rgb_palette = null;
+	},
+	set_pixel: function(x, y, idx) {
+		const rgb = this.rgb_palette[idx];
+		const off = (y * this.width + x) * 4;
+		this.image_data.data[off]     = rgb[0];
+		this.image_data.data[off + 1] = rgb[1];
+		this.image_data.data[off + 2] = rgb[2];
+		this.image_data.data[off + 3] = 255;
+	}
+};
 
 // Augment the original system font set -- sizes (8, 9, 10) --
 // by doubling them to produce sizes 16, 18, and 20.
@@ -2511,8 +2543,10 @@ const tool_functions = {
 				}
 
 				// Draw the temporary line
+				batch_update.begin(liveContext);
 				set_color(virtual_canvas.get_color(), liveContext, 1);
 				draw_line(liveContext, origin_x, origin_y, px, py);
+				batch_update.end();
 			}
 
 			draw_cursor(0, px, py);
@@ -2599,7 +2633,8 @@ const tool_functions = {
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
 
 			if (current_state == 'drawing') {
-				// Set up the live context
+				// Prepare for batch update to the live context
+				batch_update.begin(liveContext);
 				set_color(virtual_canvas.get_color(), liveContext, 1);
 
 				// Draw previous segments of the polyline
@@ -2613,6 +2648,8 @@ const tool_functions = {
 
 				// Draw the new segment
 				draw_line(liveContext, origin_x, origin_y, px, py);
+				// End batch update
+				batch_update.end();
 			}
 
 			draw_cursor(0, px, py);
@@ -2724,9 +2761,9 @@ const tool_functions = {
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
 
 			if (current_state == 'drawing') {
-				// Draw the edges of the temporary rectangle
+				// Prepare for batch update to the live context
+				batch_update.begin(liveContext);
 				set_color(virtual_canvas.get_color(), liveContext, 1);
-
 
 				// Check if shift key is being held.
 				// If so, restrict the rectangle to a square shape.
@@ -2747,6 +2784,8 @@ const tool_functions = {
 				if (border_flag) {
 					draw_rect(liveContext, [[origin_x, origin_y], [px, py]]);
 				}
+				// End batch update
+				batch_update.end();
 			}
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
@@ -2874,10 +2913,10 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
+			// Prepare for batch update to the live context
+			batch_update.begin(liveContext);
+
 			let circle_mode = false;
-			if (debug_mousemove == true) {
-				debug(`draw_ellipse mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
 
 			let sx = event.layerX;
 			let sy = event.layerY;
@@ -2908,6 +2947,8 @@ const tool_functions = {
 						draw_ellipse(liveContext, origin_x, origin_y, x_radius, y_radius);
 					}
 				}
+				// End batch update
+				batch_update.end();
 			}
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
@@ -2997,10 +3038,6 @@ const tool_functions = {
 			current_state = 'start';
 		},
 		mousemove: function(event) {
-			if (debug_mousemove == true) {
-				debug(`draw_polygon mousemove\t|\tTool: ${current_tool}\t|\tState: ${current_state}`);
-			}
-
 			let sx = event.layerX;
 			let sy = event.layerY;
 			let [px, py] = translate_to_screen(sx, sy);
@@ -3009,6 +3046,9 @@ const tool_functions = {
 			clearCanvas(liveContext, liveCanvas, 'rgba(0,0,0,0)');
 
 			if (current_state == 'drawing') {
+				// Prepare for batch update to the live context
+				batch_update.begin(liveContext);
+
 				// Check if shift key is being held.
 				// If so, restrict line to multiples of 45 degrees.
 				if (event.shiftKey) {
@@ -3031,6 +3071,8 @@ const tool_functions = {
 				if (border_flag) {
 					draw_polyline(liveContext, tool_functions.draw_polygon.points.concat([[px, py]]));
 				}
+				// End batch update
+				batch_update.end();
 			}
 			draw_cursor(0, px, py);
 			update_loupe(px, py);
@@ -3234,11 +3276,17 @@ const tool_functions = {
 				const orig_color = virtual_canvas.get_color();
 				const temp_color = (virtual_canvas.get_palette().length - 1) - orig_color;
 
+				// Prepare for batch update to the live context
+				batch_update.begin(liveContext);
+
 				set_color(temp_color, liveContext, 1);
 				// Set XOR to true when drawing these lines. Ensures they will 
 				// always be visible over the area we are tracing.
 				draw_rect(liveContext, [[origin_x, origin_y], [px,py]], true);
 				set_color(orig_color, liveContext, 1);
+
+				// End batch update
+				batch_update.end();
 			}
 
 			if (current_state == 'moving') {
@@ -3248,8 +3296,13 @@ const tool_functions = {
 					[px, py] = convert_to_45_deg([origin_x, origin_y], [px, py]);
 				}
 
+				// Prepare for batch update to the live context
+				batch_update.begin(liveContext);
+
 				blit_write(liveContext, tool_functions.blit.source_points, [[px, py]], tool_functions.blit.mode);
 
+				// End batch update to the live context
+				batch_update.end();
 			}
 
 			draw_cursor(0, px, py);
@@ -3418,6 +3471,9 @@ const tool_functions = {
 			}
 
 			if (current_state == 'drawing') {
+				// Prepare for batch update to the live context
+				batch_update.begin(liveContext);
+
 				// Set up the live context
 				set_color(virtual_canvas.get_color(), liveContext, 1);
 				// Write the temporary letters
@@ -3425,6 +3481,9 @@ const tool_functions = {
 				// Set up the live context for drawing insertion point
 				set_color(1, liveContext, 1);
 				draw_insertion_point(liveContext, tool_functions.write_text.points, tool_functions.write_text.insertion_point);
+
+				// End batch update
+				batch_update.end();
 			}
 		}
 	}
@@ -3539,15 +3598,23 @@ function set_pixel(ctx, x, y, idx=null) {
 	if (x < 0 || y < 0 || x >= virtual_canvas.width || y >= virtual_canvas.height) { return; }
 
 	if (idx == null) { idx = virtual_canvas.get_color(); }
+	// Set pixel in the virtual Atari canvas
 	if (ctx == 'virtual') {
 		virtual_canvas.set_pixel(x, y, idx);
 	}
+	// Set pixel in the Atari blit memory
 	else if (ctx == 'memory') {
 		virtual_canvas.set_memory_pixel(x, y, idx);
 	}
+	// Set pixel on an HTML canvas via batch update.
+	else if (ctx == batch_update.ctx) {
+		batch_update.set_pixel(x, y, idx);
+	}
+	// Catch-all just in case. Shouldn't get here, though.
 	else {
 		ctx.fillRect(x, y, 1, 1);
 	}
+
 }
 
 
@@ -3974,6 +4041,16 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 	const src_w = virtual_canvas.buffer_width;
 	const src_h = virtual_canvas.buffer_height;
 
+	let image_data, pixels, rgb_pal;
+
+
+	// If we're writing to an HTML context, get ImageData ready.
+	if (typeof dest_ctx !== 'string') {
+		image_data = dest_ctx.createImageData(src_w, src_h);
+		pixels = image_data.data;
+		rgb_pal = virtual_canvas.get_rgb_palette();
+	}
+
 	// Hoist all invariants out of the loop
 	const op = LOGICAL_OPS[mode];
 	if (!op) throw new Error('COULD NOT PARSE MODE.');
@@ -3998,8 +4075,6 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 			const is_medium = virtual_canvas.get_palette().length === 4;
 			const color_idx_to_pixel_val = is_medium ? IDX_TO_PIXEL_4 : IDX_TO_PIXEL_16;
 			const pixel_val_to_color_idx = is_medium ? PIXEL_TO_IDX_4 : PIXEL_TO_IDX_16;
-
-
 
 			// Get the source and destination pixels.
 
@@ -4028,10 +4103,14 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 				op(S, D) & bitmask
 			];
 
-			// To make the blit rectangle show up on mousemove, I have to explicitly set the color here. 
-			// But _only_ with actual HTML contexts.
-			if (dest_ctx != 'memory' && dest_ctx != 'virtual') {
-				set_color(new_idx, dest_ctx);
+			// If this is for an HTML context, add pixel to the ImageData buffer.
+			if (typeof dest_ctx !== 'string') {
+				const rgb = rgb_pal[new_idx];
+				const off = (y * src_w + x) * 4;
+				pixels[off] = rgb[0];
+				pixels[off+1] = rgb[1];
+				pixels[off+2] = rgb[2];
+				pixels[off+3] = 255;
 			}
 
 			set_pixel(dest_ctx, dx, dy, new_idx);
