@@ -3961,16 +3961,6 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 	const src_w = virtual_canvas.buffer_width;
 	const src_h = virtual_canvas.buffer_height;
 
-	let image_data, pixels, rgb_pal;
-
-
-	// If we're writing to an HTML context, get ImageData ready.
-	if (typeof dest_ctx !== 'string') {
-		image_data = dest_ctx.createImageData(src_w, src_h);
-		pixels = image_data.data;
-		rgb_pal = virtual_canvas.get_rgb_palette();
-	}
-
 	// Hoist all invariants out of the loop
 	const op = LOGICAL_OPS[mode];
 	if (!op) throw new Error('COULD NOT PARSE MODE.');
@@ -3978,6 +3968,14 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 	// Low resolution, 4-bit mask: 0xF.
 	// Medium resolution, 2-bit mask: 0x3
 	const bitmask = virtual_canvas.get_palette().length === 4 ? 0x3 : 0xF;
+
+	// To avoid looking up the palette size on every pixel,
+	// let's just look it up now, and pre-pick the correct
+	// idx->pixel lookup table for this palette size.
+	const is_medium = virtual_canvas.get_palette().length === 4;
+	const color_idx_to_pixel_val = is_medium ? IDX_TO_PIXEL_4 : IDX_TO_PIXEL_16;
+	const pixel_val_to_color_idx = is_medium ? PIXEL_TO_IDX_4 : PIXEL_TO_IDX_16;
+
 
 	// Iterate over all the pixels, skipping any that are outside the destination bounds
 	for (let y=0; y<src_h; y++) {
@@ -3987,14 +3985,6 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 		for (let x=0; x<src_w; x++) {
 			const dx = x + dest_x0;
 			if (dx < 0 || dx >= cw) { continue; }
-
-
-			// To avoid looking up the palette size on every pixel, 
-			// let's just look it up now, and pre-pick the correct 
-			// idx->pixel lookup table for this palette size.
-			const is_medium = virtual_canvas.get_palette().length === 4;
-			const color_idx_to_pixel_val = is_medium ? IDX_TO_PIXEL_4 : IDX_TO_PIXEL_16;
-			const pixel_val_to_color_idx = is_medium ? PIXEL_TO_IDX_4 : PIXEL_TO_IDX_16;
 
 			// Get the source and destination pixels.
 
@@ -4022,16 +4012,6 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 				// Perform the logical operation
 				op(S, D) & bitmask
 			];
-
-			// If this is for an HTML context, add pixel to the ImageData buffer.
-			if (typeof dest_ctx !== 'string') {
-				const rgb = rgb_pal[new_idx];
-				const off = (y * src_w + x) * 4;
-				pixels[off] = rgb[0];
-				pixels[off+1] = rgb[1];
-				pixels[off+2] = rgb[2];
-				pixels[off+3] = 255;
-			}
 
 			set_pixel(dest_ctx, dx, dy, new_idx);
 		}
