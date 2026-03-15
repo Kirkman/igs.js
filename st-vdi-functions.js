@@ -196,7 +196,7 @@ function pline(points) {
 			points[i+1][0],
 			points[i+1][1]
 		);
-		out_points = out_points.concat(line_points);
+		out_points.push(...line_points); // avoid concat for performance
 	}
 	return out_points;
 }
@@ -209,7 +209,7 @@ function pline(points) {
 function pline_closed(points) {
 	let out_points = [];
 	let line_points = pline(points);
-	out_points = out_points.concat(line_points);
+	out_points.push(...line_points); // avoid concat for performance
 	if (points.length > 1) {
 		line_points = abline(
 			points[points.length-1][0],
@@ -217,7 +217,7 @@ function pline_closed(points) {
 			points[0][0],
 			points[0][1]
 		);
-		out_points = out_points.concat(line_points);
+		out_points.push(...line_points); // avoid concat for performance
 	}
 	return out_points;
 }
@@ -261,7 +261,7 @@ function scanline_fill(polygon) {
 			const x0 = xs[k], x1 = xs[k + 1];
 			if (x1 >= x0) {
 				let line_points = abline(x0, y, x1, y);
-				out_points = out_points.concat(line_points);
+				out_points.push(...line_points); // avoid concat for performance
 			}
 		}
 	}
