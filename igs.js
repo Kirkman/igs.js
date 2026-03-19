@@ -3976,11 +3976,25 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 	const color_idx_to_pixel_val = is_medium ? IDX_TO_PIXEL_4 : IDX_TO_PIXEL_16;
 	const pixel_val_to_color_idx = is_medium ? PIXEL_TO_IDX_4 : PIXEL_TO_IDX_16;
 
+	// Grab direct references to the underlying arrays
+	// Again, to avoid looking up repeatedly.
+	const buffer = virtual_canvas.buffer;
+	const data = virtual_canvas.data;
+	const memory = virtual_canvas.memory;
+	const is_memory = (dest_ctx === 'memory');
+	const is_batch = (batch_update.ctx && dest_ctx === batch_update.ctx);
+
 
 	// Iterate over all the pixels, skipping any that are outside the destination bounds
 	for (let y=0; y<src_h; y++) {
 		const dy = y + dest_y0;
 		if (dy < 0 || dy >= ch) { continue; }
+
+		// Grab the row arrays once per scanline
+		// Grabbing the row instead of each individual pixel saves 
+		// thousands of set_pixel() function calls. 
+		const buffer_row = buffer[y];
+		const dest_row = is_memory ? memory[dy] : data[dy];
 
 		for (let x=0; x<src_w; x++) {
 			const dx = x + dest_x0;
@@ -3997,15 +4011,8 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 			// https://www.atarimagazines.com/v4n12/ControlGEM.php
 			// https://bitsavers.computerhistory.org/pdf/atari/ST/Atari_ST_GEM_Programming_1986/GEM_0174.pdf
 
-			const S = color_idx_to_pixel_val[ virtual_canvas.get_buffer_pixel(x, y) ];
-			let D;
-			if (dest_ctx == 'memory') {
-				D = color_idx_to_pixel_val[ virtual_canvas.get_memory_pixel(dx, dy) ];
-			}
-			else {
-				D = color_idx_to_pixel_val[ virtual_canvas.get_pixel(dx, dy) ];
-			}
-
+			const S = color_idx_to_pixel_val[ buffer_row[x] ];
+			const D = color_idx_to_pixel_val[ dest_row[dx] ];
 			// The result of the logical operation needs to be
 			// converted from pixel values back to color indices.
 			const new_idx = pixel_val_to_color_idx[
@@ -4013,7 +4020,17 @@ function blit_write(dest_ctx, src_pts, dest_pts, mode) {
 				op(S, D) & bitmask
 			];
 
-			set_pixel(dest_ctx, dx, dy, new_idx);
+			// Write to destination
+			if (is_batch) {
+				batch_update.set_pixel(dx, dy, new_idx);
+			}
+			else if (is_memory) {
+				memory[dy][dx] = new_idx;
+			}
+			else {
+				data[dy][dx] = new_idx;
+			}
+
 		}
 	}
 }
