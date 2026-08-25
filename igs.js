@@ -397,13 +397,53 @@ function fix_history(json) {
 }
 
 // VERSION 1 -> VERSION 2
-// For now only changing circles to ellipses.
-// Eventually upgrader also will assign attributes directly to shapes
-// replacing any separate explicit set_* commands.
+// * Assign attributes directly to shapes and remove separate explicit `change_*` commands.
+// * Change deprecated `draw_circle` to `draw_ellipse`.
 function upgrade_v1_v2(old_history) {
-	new_history = [];
-	for (cmd of old_history) {
+	const new_history = [];
+
+	// Local state for processing this file.
+	const state = {
+		pattern: fill_patterns[DEFAULT_PATTERN_INDEX].slug,
+		border_flag: DEFAULT_BORDER_FLAG,
+		mode: DEFAULT_DRAWING_MODE,
+		font: fonts[DEFAULT_FONT_INDEX].point,
+		effect: 0,
+		rotation: 0,
+	};
+
+	for (const cmd of old_history) {
+		// Non-command objects (e.g. hand-written comments and spacers) can be
+		// passed through without parsing. history.load() will handle them.
+		if (!('action' in cmd)) {
+			new_history.push(cmd);
+			continue;
+		}
+
 		switch (cmd.action) {
+			// These three are no longer separate commands in JoshDraw,
+			// so absorb their attributes into the global state.
+			// They will be set explicitly on subsequent draw commands.
+			case 'change_pattern':
+				state.pattern = cmd.params.pattern;
+				state.border_flag = cmd.params.border_flag;
+				continue;
+
+			case 'change_drawing_mode':
+				state.mode = cmd.params.mode;
+				continue;
+
+			case 'change_font':
+				state.font = cmd.params.font;
+				state.effect = cmd.params.effect;
+				state.rotation = cmd.params.rotation;
+				continue;
+
+			// This command was always superfluous, since I already was 
+			// recording the color as a parameter on all draw commands.
+			case 'set_color':
+				continue;
+
 			// CONVERT CIRCLES TO ELLIPSES
 			// No need for a separate tool/mode in JoshDraw when a circle *is* an ellipse.
 			case 'draw_circle':
@@ -413,41 +453,66 @@ function upgrade_v1_v2(old_history) {
 						color: cmd.params.color,
 						center: cmd.params.center,
 						x_radius: cmd.params.radius,
-						y_radius: cmd.params.radius
+						y_radius: cmd.params.radius,
+						...get_attrs('draw_ellipse', state)
 					}
-				})
+				});
 				break;
 
-			// NEED TO ADD CASE HERE FOR `change_font`
-			// (once I have properly wrapped its functionality into `write_text`)
-
-			// All other commands should be fine.
+			// Push all other commands onto the history stack. If this is 
+			// a drawing command, the various fill/pattern/border attributes
+			// will be set before pushing.
 			default:
+				cmd.params = {
+					...cmd.params,
+					...get_attrs(cmd.action, state)
+				};
 				new_history.push(cmd);
 		}
 	}
+
 	return new_history;
 }
 
 // For a given action, get the relevant current global attributes
 // and return them, for recording in this action's history entry.
-function get_attrs(action) {
-	const attrs = {};
+// Also accepts an optional local `state` which can be checked
+// instead of JD's globals. this is used by the upgrader functions.
+function get_attrs(action, state) {
+	const comp_attrs = {};
+	const out_attrs = {};
 
+	// If state was passed in, compare against this local state.
+	if (state !== undefined) {
+		for (key of Object.keys(state)) {
+			comp_attrs[key] = state[key];
+		}
+	}
+	// Otherwise, compare against JD's global state.
+	else {
+		comp_attrs.pattern = current_pattern.slug;
+		comp_attrs.border_flag = border_flag;
+		comp_attrs.mode = current_drawing_mode;
+		comp_attrs.font = current_font.point;
+		comp_attrs.effect = 0;  // hard-coded for now
+		comp_attrs.rotation = 0; // hard-coded for now
+	}
+
+	// Return only the parameters appropriate for this action
 	if (ACTIONS_FILL.includes(action)) {
-		attrs.pattern = current_pattern.slug;
-		attrs.border_flag = border_flag;
+		out_attrs.pattern = comp_attrs.pattern;
+		out_attrs.border_flag = comp_attrs.border_flag;
 	}
 	if (ACTIONS_DRAWING.includes(action)) {
-		attrs.mode = current_drawing_mode;
+		out_attrs.mode = comp_attrs.mode;
 	}
 	if (ACTIONS_FONT.includes(action)) {
-		attrs.font = current_font.point;
-		attrs.effect = 0;    // hard-coded for now
-		attrs.rotation = 0;  // hard-coded for now
+		out_attrs.font = comp_attrs.font;
+		out_attrs.effect = comp_attrs.effect;
+		out_attrs.rotation = comp_attrs.rotation;
 	}
 
-	return attrs;
+	return out_attrs;
 }
 
 
@@ -1686,7 +1751,7 @@ const history = {
 		// Check to see if the current command's attributes are 
 		// different from the current global state. If so, output
 		// the IGS commands to set the new attributes.
-		const set_new_attrs = function(cmd) {
+		const emit_new_attrs = function(cmd) {
 			const p = cmd.params;
 
 			if (ACTIONS_DRAWING.includes(cmd.action)) {
@@ -1727,7 +1792,7 @@ const history = {
 
 			// Check if this command's attributes differ from the current global state. 
 			// If so, output the IGS commands to set the new attributes.
-			set_new_attrs(cmd);
+			emit_new_attrs(cmd);
 
 			switch (cmd.action) {
 				case 'set_resolution':
