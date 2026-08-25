@@ -24,6 +24,52 @@ let debug_mousemove = false;
 let mouse_is_dragging = false;
 let mouse_is_down = false;
 
+
+// -------------------------
+// JOSHDRAW JSON FORMAT FLAG
+// -------------------------
+//
+// Version 1: fill pattern, border flag and drawing mode were explicit commands
+//            in the history. Also, some older JSON files have differences with
+//            handling of circles and text.
+// Version 2: Attributes are now params set directly on each shape, similar
+//            to the way `color` always was.
+const JOSHDRAW_FORMAT_VERSION = 2;
+
+// DEFAULT ATTRIBUTES
+// These are JoshDraw's defaults, based on my preferences for drawing.
+const DEFAULT_PATTERN_INDEX = 1;    // fill_patterns[1] is Solid
+const DEFAULT_BORDER_FLAG = 0;      // no border around filled shapes
+const DEFAULT_DRAWING_MODE = 2;     // transparent
+const DEFAULT_FONT_INDEX = 1;       // fonts[1], the 9pt system font
+const DEFAULT_Z_INDEX = 0;          // for front/back functionality
+
+// Commands that need fill pattern and border flag attributes.
+const ACTIONS_FILL = [
+	'draw_rect',
+	'draw_polygon',
+	'draw_ellipse',
+	'draw_slice'
+];
+
+// Commands that need font attributes.
+const ACTIONS_FONT = [
+	'write_text'
+];
+
+// Commands that need drawing mode attribute.
+const ACTIONS_DRAWING = [
+	'draw_point',
+	'draw_line',
+	'draw_polyline',
+	'draw_rect',
+	'draw_polygon',
+	'draw_ellipse',
+	'draw_curve',
+	'draw_slice',
+	'write_text',
+];
+
 let current_tool = null;
 let current_state = null;
 let current_pattern = null;
@@ -331,7 +377,30 @@ function translate_to_screen(sx, sy) {
 
 // This function updates the JSON histories produced by older versions of JoshDraw
 // so that those files can still be opened and edited correctly.
-function fix_history(old_history) {
+function fix_history(json) {
+	// Treat unversioned JSON files as version 1.
+	let version = Number(json.version) || 1;
+	let history = json.history;
+
+	if (version < 2) {
+		history = upgrade_v1_v2(history);
+		version = 2;
+	}
+
+	// // FOR FUTURE: Can add additional migrations if needed.
+	// if (version < 3) {
+	// 	history = upgrade_v2_v3(history);
+	// 	version = 3;
+	// }
+
+	return history;
+}
+
+// VERSION 1 -> VERSION 2
+// For now only changing circles to ellipses.
+// Eventually upgrader also will assign attributes directly to shapes
+// replacing any separate explicit set_* commands.
+function upgrade_v1_v2(old_history) {
 	new_history = [];
 	for (cmd of old_history) {
 		switch (cmd.action) {
@@ -359,6 +428,29 @@ function fix_history(old_history) {
 	}
 	return new_history;
 }
+
+// For a given action, get the relevant current global attributes
+// and return them, for recording in this action's history entry.
+function get_attrs(action) {
+	const attrs = {};
+
+	if (ACTIONS_FILL.includes(action)) {
+		attrs.pattern = current_pattern.slug;
+		attrs.border_flag = border_flag;
+	}
+	if (ACTIONS_DRAWING.includes(action)) {
+		attrs.mode = current_drawing_mode;
+	}
+	if (ACTIONS_FONT.includes(action)) {
+		attrs.font = current_font.point;
+		attrs.effect = 0;    // hard-coded for now
+		attrs.rotation = 0;  // hard-coded for now
+	}
+
+	return attrs;
+}
+
+
 
 // This function takes a bitmap font glyph array and scales it up by an integer factor.
 function scale_font_glyph(glyph, scale=2) {
@@ -461,7 +553,7 @@ upload_input.addEventListener('change', function(event) {
 		const json = JSON.parse(content);
 		// Fix the history of older JSON files. 
 		// Primarily to deal with things like draw_circle and change_font.
-		const clean_history = fix_history(json.history);
+		const clean_history = fix_history(json);
 		// Now load the history
 		history.load(clean_history);
 		// Render it all
@@ -662,15 +754,10 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 					});
 					this.classList.add('active');
 
-					// Add this action to our history stack, if we actually changed colors.
-					if (current_state !== 'rendering' && color_change_flag == true) {
-						history.add({
-							action: 'set_color',
-							params: {
-								color: virtual_canvas.get_color(),
-							}
-						});
-					}
+					// In the past, I recorded a `set_color` command here,
+					// but that is no longer necessary since this attribute
+					// is now recorded on each shape when it is drawn.
+
 					set_color(virtual_canvas.get_color(), context);
 
 				} // end if
@@ -1053,9 +1140,16 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}
 
 
-	// Set a pointer to the chosen color pattern
-	current_pattern = fill_patterns[1];
+	// Set drawing attributes to JD defaults.
+	border_flag = DEFAULT_BORDER_FLAG;
+	current_drawing_mode = DEFAULT_DRAWING_MODE;
 
+	document.querySelector('#fill-border').checked = Boolean(DEFAULT_BORDER_FLAG);
+	document.querySelector('.widget-drawing-mode select').value = DEFAULT_DRAWING_MODE;
+
+	// Set a pointer to the chosen fill pattern (use JD default at startup).
+	current_pattern = fill_patterns[DEFAULT_PATTERN_INDEX];
+	
 	// Set up patterns widget
 	const pattern_select = document.querySelector('.widget-patterns select');
 
@@ -1098,16 +1192,9 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			const new_pattern_index = parseInt(this.value);
 			current_pattern = fill_patterns[new_pattern_index];
 
-			if (current_state !== 'rendering') {
-				// Add this action to our history stack.
-				history.add({
-					action: 'change_pattern',
-					params: {
-						pattern: current_pattern.slug,
-						border_flag: border_flag
-					}
-				});
-			}
+			// In the past, I recorded a `change_pattern` command here,
+			// but that is no longer necessary since its attributes
+			// now are recorded on each shape when it is drawn.
 		});
 		pattern_select.setAttribute('hasChangeHandler', 'true');
 	}
@@ -1128,16 +1215,9 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 				border_flag = 0;
 			}
 
-			if (current_state !== 'rendering') {
-				// Add this action to our history stack.
-				history.add({
-					action: 'change_pattern',
-					params: {
-						pattern: current_pattern.slug,
-						border_flag: border_flag
-					}
-				});
-			}
+			// In the past, I recorded a `change_pattern` command here,
+			// but that is no longer necessary since its attributes
+			// now are recorded on each shape when it is drawn.
 		});
 		border_flag_input.setAttribute('hasChangeHandler', 'true');
 	}
@@ -1153,15 +1233,9 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			// Set global current_pattern to new value.
 			current_drawing_mode = parseInt(this.value);
 
-			if (current_state !== 'rendering') {
-				// Add this action to our history stack.
-				history.add({
-					action: 'change_drawing_mode',
-					params: {
-						mode: current_drawing_mode,
-					}
-				});
-			}
+			// In the past, I recorded a `change_drawing_mode` command here,
+			// but that is no longer necessary since its attributes
+			// now are recorded on each shape when it is drawn.
 		});
 		drawing_mode_select.setAttribute('hasChangeHandler', 'true');
 	}
@@ -1169,7 +1243,7 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 
 	// Set a pointer to the chosen color pattern
-	current_font = fonts[1];
+	current_font = fonts[DEFAULT_FONT_INDEX];
 
 	// Set up fonts widget
 	const font_select = document.querySelector('.widget-fonts select');
@@ -1209,17 +1283,9 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 			const new_font_index = parseInt(this.value);
 			current_font = fonts[new_font_index];
 
-			if (current_state !== 'rendering') {
-				// Add this action to our history stack.
-				history.add({
-					action: 'change_font',
-					params: {
-						font: current_font.point, // IGS identifies fonts by point size.
-						effect: 0, // FOR NOW DEFAULT TO NORMAL. In future will support other effects.
-						rotation: 0 // FOR NOW DEFAULT TO NORMAL. In future will support other effects.
-					}
-				});
-			}
+			// In the past, I recorded a `change_font` command here,
+			// but that is no longer necessary since its attributes
+			// now are recorded on each shape when it is drawn.
 		});
 		font_select.setAttribute('hasChangeHandler', 'true');
 	}
@@ -1548,10 +1614,10 @@ const history = {
 	save: function(filename) {
 		// Combine the past and present to generate a full history object.
 		const full_history = this.past.concat([this.present]);
-		const obj = { history: full_history };
 		// Convert command history into a JSON string. 
-		// Add a line break before each action object to make it easier to edit in text editors.
-		let obj_str = JSON.stringify(obj).replaceAll('{"action"','\n{"action"');
+		// Add a line break before each history entry to make it easier to edit in text editors.
+		const lines = full_history.map(entry => JSON.stringify(entry));
+		let obj_str = `{"version":${JOSHDRAW_FORMAT_VERSION},\n"history":[\n${lines.join(',\n')}\n]}`;
 		const a = document.createElement('a');
 		const type = filename.split('.').pop();
 		a.href = URL.createObjectURL( new Blob([obj_str], { type:`text/${type === 'txt' ? 'plain' : type}` }) );
@@ -1609,13 +1675,59 @@ const history = {
 		let exp_text_color = null;
 		let exp_pattern = null;
 		let exp_border_flag = null;
+		let exp_drawing_mode = null;
 		let exp_text_effect = null;
 		let exp_text_size = null;
 		let exp_text_rotation = null;
+		let exp_text_font = null;
 		let corner_x_coords = null;
 		let corner_y_coords = null;
 
+		// Check to see if the current command's attributes are 
+		// different from the current global state. If so, output
+		// the IGS commands to set the new attributes.
+		const set_new_attrs = function(cmd) {
+			const p = cmd.params;
+
+			if (ACTIONS_DRAWING.includes(cmd.action)) {
+				const mode = (p.mode === undefined) ? DEFAULT_DRAWING_MODE : p.mode;
+				if (exp_drawing_mode !== mode) {
+					cmd_str += `G#M>${mode}:\r\n`;
+					exp_drawing_mode = mode;
+				}
+			}
+
+			if (ACTIONS_FILL.includes(cmd.action)) {
+				const pattern = (p.pattern === undefined) ? fill_patterns[DEFAULT_PATTERN_INDEX].slug : p.pattern;
+				const border = (p.border_flag === undefined) ? DEFAULT_BORDER_FLAG : p.border_flag;
+
+				if (exp_pattern !== pattern || exp_border_flag !== border) {
+					cmd_str += `G#A>${pattern},${border}:\r\n`;
+					exp_pattern = pattern;
+					exp_border_flag = border;
+				}
+			}
+
+			if (ACTIONS_FONT.includes(cmd.action)) {
+				const font = (p.font === undefined) ? fonts[DEFAULT_FONT_INDEX].point : p.font;
+				// these attributes are hard-coded and not user-changeable for now.
+				const effect = p.effect || 0;
+				const rotation = p.rotation || 0;
+
+				if (exp_text_effect !== effect || exp_text_font !== font || exp_text_rotation !== rotation) {
+					cmd_str += `G#E>${effect},${font},${rotation}:\r\n`;
+					exp_text_effect = effect;
+					exp_text_font = font;
+					exp_text_rotation = rotation;
+				}
+			}
+		};
+
 		for (cmd of full_history) {
+
+			// Check if this command's attributes differ from the current global state. 
+			// If so, output the IGS commands to set the new attributes.
+			set_new_attrs(cmd);
 
 			switch (cmd.action) {
 				case 'set_resolution':
@@ -1626,28 +1738,8 @@ const history = {
 					cmd_str += `G#s>${cmd.params.type}:\r\n`;
 					break;
 
-				// I am now manually setting the colors within the tool commands.
-				case 'set_color':
-					// if (exp_fill_color !== cmd.params.color) {
-					// 	cmd_str += `G#C>1,${cmd.params.color}:\r\n`;
-					// 	exp_fill_color = cmd.params.color;
-					// }
-					break;
-
 				case 'change_color':
 					cmd_str += `G#S>${cmd.params.index},${cmd.params.r},${cmd.params.g},${cmd.params.b}:\r\n`;
-					break;
-
-				case 'change_drawing_mode':
-					cmd_str += `G#M>${cmd.params.mode}:\r\n`;
-					break;
-
-				case 'change_pattern':
-					if (exp_pattern !== cmd.params.pattern || exp_border_flag !== cmd.params.border_flag) {
-						cmd_str += `G#A>${cmd.params.pattern},${cmd.params.border_flag}:\r\n`;
-						exp_pattern = cmd.params.pattern;
-						exp_border_flag = cmd.params.border_flag;
-					}
 					break;
 
 				case 'draw_point':
@@ -1800,33 +1892,18 @@ const history = {
 						cmd_str += `G#G>${cmd.params.type},${cmd.params.mode}`;
 					}
 
-					// Prevent these values from being repeated in future loop iterations.
-					corner_x_coords = null;
-					corner_y_coords = null;
-
 					// All blit types except 1 have destination coordinates.
 					if (cmd.params.type != 1) {
 						cmd_str += `,${cmd.params.dest_points[0][0]},${cmd.params.dest_points[0][1]}`;
 					}
 					cmd_str += `:\r\n`;
+
+					// Prevent these values from being repeated in future loop iterations.
+					corner_x_coords = null;
+					corner_y_coords = null;
+
 					break;
 
-				// I STUPIDLY DIDN'T IMPLEMENT "FONT" AS A PARAM OF WRITE_TEXT BEFORE
-				// ALLOWING OTHER PEOPLE TO USE THIS EDITOR.
-				// So for now, I _have_ to process `change_font`. But I'm going to update this
-				// eventually and handle all three params (effect, font, rotation) within the
-				// `write_text` command, similar to how I'm handling color changes in each
-				// command.
-				case 'change_font':
-					if (exp_text_effect !== cmd.params.effect || exp_text_font !== cmd.params.font || exp_text_rotation !== cmd.params.rotation) {
-						cmd_str += `G#E>${cmd.params.effect},${cmd.params.font},${cmd.params.rotation}:\r\n`;
-						exp_text_effect = cmd.params.effect;
-						exp_text_font = cmd.params.font;
-						exp_text_rotation = cmd.params.rotation;
-					}
-					break;
-
-				// SEE ABOVE ABOUT CHANGE_FONT AND "FONT" PARAM.
 				case 'write_text':
 					// Don't export this command if there's no text.
 					if (cmd.params.text && cmd.params.text.toString().trim() !== '') {
@@ -1936,6 +2013,14 @@ const renderer = {
 		// Set state as rendering
 		current_state = 'rendering';
 
+		// Remember the user's current attribute selections.
+		// After rendering, we need to restore these as the global attributes.
+		const user_pattern = current_pattern;
+		const user_border_flag = border_flag;
+		const user_drawing_mode = current_drawing_mode;
+		const user_font = current_font;
+		const user_color = virtual_canvas.get_color();
+
 		// Iterate over command history
 		for (let i=0; i<history.past.length; i++) {
 			const cmd = history.past[i];
@@ -1971,6 +2056,16 @@ const renderer = {
 		// Reset state
 		current_state = 'start';
 
+		// Restore the user's attribute selections -- or restore JD's
+		// defaults if this render was invoked by loading a JSON file.
+		current_pattern = user_pattern || fill_patterns[DEFAULT_PATTERN_INDEX];
+		border_flag = (user_border_flag === null) ? DEFAULT_BORDER_FLAG : user_border_flag;
+		current_drawing_mode = (user_drawing_mode === null) ? DEFAULT_DRAWING_MODE : user_drawing_mode;
+		current_font = user_font || fonts[DEFAULT_FONT_INDEX];
+		if (user_color !== null && virtual_canvas.get_color() !== user_color) {
+			this.set_color({ color: user_color });
+		}
+
 		// Make sure the user's last-selected tool doesn't get unselected just because they canceled.
 		if (last_user_selected_tool !== null && last_user_selected_tool !== current_tool) {
 			renderer.update_tool(last_user_selected_tool);
@@ -1996,13 +2091,24 @@ const renderer = {
 		// // This is probably unnecessary since this gets set in the click handler.
 		// set_color(params.color, context, 1);
 	},
+	change_color: function(params) {
+		change_palette_color(context, params.index, [params.r, params.g, params.b]);
+	},
 	check_color: function(c) {
 		if (virtual_canvas.color != c) {
 			this.set_color({color: c});
 		}
 	},
-	change_color: function(params) {
-		change_palette_color(context, params.index, [params.r, params.g, params.b]);
+	// Apply a shape's fill pattern, border flag and drawing mode before it
+	// is drawn. Unlike check_color, these write the globals directly instead
+	// of going through the widgets.
+	check_attributes: function(action, params) {
+		if (ACTIONS_FILL.includes(action)) {
+			const pattern = fill_patterns.find(d => d.slug == params.pattern);
+			current_pattern = pattern || fill_patterns[DEFAULT_PATTERN_INDEX];
+			border_flag = (params.border_flag === undefined) ? DEFAULT_BORDER_FLAG : params.border_flag;
+		}
+		current_drawing_mode = (params.mode === undefined) ? DEFAULT_DRAWING_MODE : params.mode;
 	},
 	change_drawing_mode: function(params) {
 		// Manually trigger a click on the drawing mode we're choosing so it will be selected in the interface
@@ -2026,6 +2132,7 @@ const renderer = {
 	draw_point: function(params) {
 		this.update_tool('draw_point');
 		this.check_color(params.color);
+		this.check_attributes('draw_point', params);
 
 		// Draw the point
 		for (point of params.points) {
@@ -2037,6 +2144,7 @@ const renderer = {
 	draw_line: function(params) {
 		this.update_tool('draw_line');
 		this.check_color(params.color);
+		this.check_attributes('draw_line', params);
 
 		// Draw the line
 		draw_line('virtual', params.points[0][0], params.points[0][1], params.points[1][0], params.points[1][1]);
@@ -2044,12 +2152,14 @@ const renderer = {
 	draw_polyline: function(params) {
 		this.update_tool('draw_polyline');
 		this.check_color(params.color);
+		this.check_attributes('draw_polyline', params);
 
 		draw_polyline('virtual', params.points);
 	},
 	draw_rect: function(params) {
 		this.update_tool('draw_rect');
 		this.check_color(params.color);
+		this.check_attributes('draw_rect', params);
 
 		// Draw rounded corners, if corner_flag is set
 		if (params.corner_flag) {
@@ -2081,6 +2191,7 @@ const renderer = {
 		// NOT IMPLEMENTED IN THE UI YET.
 		// this.update_tool('draw_curve');
 		this.check_color(params.color);
+		this.check_attributes('draw_curve', params);
 
 		// If the radii are equal, treat this as an arc not an elliptical arc.
 		if (params.x_radius == params.y_radius) {
@@ -2104,6 +2215,7 @@ const renderer = {
 		// NOT IMPLEMENTED IN THE UI YET.
 		// this.update_tool('draw_slice');
 		this.check_color(params.color);
+		this.check_attributes('draw_slice', params);
 
 		// If the radii are equal, treat this as a circular pie slice not an elliptical pie slice.
 		if (params.x_radius == params.y_radius) {
@@ -2140,6 +2252,7 @@ const renderer = {
 	draw_ellipse: function(params) {
 		this.update_tool('draw_ellipse');
 		this.check_color(params.color);
+		this.check_attributes('draw_ellipse', params);
 
 		// If the radii are equal, treat this as a circle not an ellipse.
 		if (params.x_radius == params.y_radius) {
@@ -2166,6 +2279,7 @@ const renderer = {
 	draw_polygon: function(params) {
 		this.update_tool('draw_polygon');
 		this.check_color(params.color);
+		this.check_attributes('draw_polygon', params);
 
 		// Fill the polygon
 		fill_poly('virtual', params.points);
@@ -2290,9 +2404,16 @@ const renderer = {
 		document.querySelector('.widget-fonts select').dispatchEvent(new Event('change'));
 		// TK TK TK: effects and rotation
 	},
+	// Change the font, using the attribute set on this write_text command.
+	check_font: function(point_size) {
+		const wanted = fonts.find(d => d.point == point_size);
+		current_font = wanted || fonts[DEFAULT_FONT_INDEX];
+	},
 	write_text: function(params) {
 		this.update_tool('write_text');
 		this.check_color(params.color);
+		this.check_attributes('write_text', params);
+		this.check_font(params.font);
 
 		// Put text on the screen
 		write_text_vdi('virtual', params.text, params.points);
@@ -2317,7 +2438,8 @@ const tool_functions = {
 					color: virtual_canvas.get_color(),
 					points: [
 						[px, py]
-					]
+					],
+					...get_attrs('draw_point')
 				}
 			});
 
@@ -2426,7 +2548,8 @@ const tool_functions = {
 				action: 'draw_point',
 				params: {
 					color: virtual_canvas.get_color(),
-					points: tool_functions.draw_point.points
+					points: tool_functions.draw_point.points,
+					...get_attrs('draw_point')
 				}
 			});
 
@@ -2472,7 +2595,8 @@ const tool_functions = {
 						color: virtual_canvas.get_color(),
 						points: [
 							[origin_x, origin_y],
-							[px, py]
+							[px, py],
+						...get_attrs('draw_line')
 						]
 					}
 				});
@@ -2575,7 +2699,8 @@ const tool_functions = {
 					action: 'draw_polyline',
 					params: {
 						color: virtual_canvas.get_color(),
-						'points': tool_functions.draw_polyline.points
+						'points': tool_functions.draw_polyline.points,
+						...get_attrs('draw_polyline')
 					}
 				});
 			}
@@ -2673,7 +2798,8 @@ const tool_functions = {
 					params: {
 						color: virtual_canvas.get_color(),
 						points: tool_functions.draw_rect.points,
-						corner_flag: tool_functions.draw_rect.corner_flag
+						corner_flag: tool_functions.draw_rect.corner_flag,
+						...get_attrs('draw_rect')
 					}
 				});
 
@@ -2820,7 +2946,8 @@ const tool_functions = {
 						color: virtual_canvas.get_color(),
 						center: tool_functions.draw_ellipse.center,
 						x_radius: tool_functions.draw_ellipse.x_radius,
-						y_radius: tool_functions.draw_ellipse.y_radius
+						y_radius: tool_functions.draw_ellipse.y_radius,
+						...get_attrs('draw_ellipse')
 					}
 				});
 
@@ -2965,7 +3092,8 @@ const tool_functions = {
 						action: 'draw_polygon',
 						params: {
 							color: virtual_canvas.get_color(),
-							'points': tool_functions.draw_polygon.points
+							'points': tool_functions.draw_polygon.points,
+							...get_attrs('draw_polygon')
 						}
 					});
 				}
@@ -3272,11 +3400,9 @@ const tool_functions = {
 					action: 'write_text',
 					params: {
 						color: virtual_canvas.get_color(),
-						font: current_font.point, // this is also in change_font, but that will go away later.
-						effect: 0, // hard-coded for now
-						rotation: 0, // hard-coded for now
 						text: tool_functions.write_text.text,
-						points: tool_functions.write_text.points
+						points: tool_functions.write_text.points,
+						...get_attrs('write_text')
 					}
 				});
 			}
