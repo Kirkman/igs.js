@@ -687,9 +687,180 @@ button_start.addEventListener('click', function(event) {
 	const user_res_id = document.querySelector('.widget-resolutions select').value;
 	const user_pal_id = document.querySelector('.widget-palettes select').value;
 
-	set_resolution_palette(user_res_id, user_pal_id, starting_new=true);
+	set_resolution_palette(user_res_id, user_pal_id, true);
+
+	setup_attribute_widgets();
 
 });
+
+// Moved all of this *out* of set_resolution_palette now that we're tracking attributes globally.
+function setup_attribute_widgets() {
+
+	// Set drawing attributes to JD defaults.
+	border_flag = DEFAULT_BORDER_FLAG;
+	current_drawing_mode = DEFAULT_DRAWING_MODE;
+
+	document.querySelector('#fill-border').checked = Boolean(DEFAULT_BORDER_FLAG);
+	document.querySelector('.widget-drawing-mode select').value = DEFAULT_DRAWING_MODE;
+
+	// Set a pointer to the chosen fill pattern (use JD default at startup).
+	current_pattern = fill_patterns[DEFAULT_PATTERN_INDEX];
+
+	// Set up patterns widget
+	const pattern_select = document.querySelector('.widget-patterns select');
+
+	// First, empty any existing buttons
+	pattern_select.replaceChildren();
+
+	for (let i=0; i<fill_patterns.length; i++) {
+		let pattern_obj = fill_patterns[i];
+
+		// This requires the use of my custom "Atari Patterns" fontset.
+		// Also, for maximum cross-platform compatibility, requires select to be set to "multiple" rather than typical dropdown.
+		let icon_code = (59392 + i).toString(16);
+
+		pattern_select.insertAdjacentHTML('beforeend', `
+			<option class="pattern-option pattern-${i}" value="${i}">&#x${icon_code}; ${pattern_obj.name}</option>
+		`);
+	}
+
+
+
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	if (!pattern_select.hasAttribute('hasChangeHandler')) {
+		// Change handler for pattern widget
+		pattern_select.addEventListener('change', function(event) {
+			// In order to show the pattern icons on all browsers, we're using the multi-select interface.
+			// But we don't want to allow multiple selections. So check if someone *did* do multiple selections.
+			if (this.selectedOptions.length > 1) {
+				let wanted_opt = current_pattern.id;
+				for (let opt of this.selectedOptions) {
+					if (parseInt(opt.value) != parseInt(current_pattern.id)) {
+						wanted_opt = parseInt(opt.value);
+					}
+				}
+				this.value = wanted_opt;
+			}
+
+
+			// Set global current_pattern to new value.
+			const new_pattern_index = parseInt(this.value);
+			current_pattern = fill_patterns[new_pattern_index];
+
+			// In the past, I recorded a `change_pattern` command here,
+			// but that is no longer necessary since its attributes
+			// now are recorded on each shape when it is drawn.
+		});
+		pattern_select.setAttribute('hasChangeHandler', 'true');
+	}
+
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	const border_flag_input = document.querySelector('#fill-border');
+	if (!border_flag_input.hasAttribute('hasChangeHandler')) {
+		// Change handler for fill-border input
+		border_flag_input.addEventListener('change', function(event) {
+			// Set global border_flag to new value.
+			const current_fill_border_flag = this.checked;
+
+			if (current_fill_border_flag == true || current_fill_border_flag == 'true' || current_fill_border_flag == 'checked') {
+				border_flag = 1;
+			}
+			else {
+				border_flag = 0;
+			}
+
+			// In the past, I recorded a `change_pattern` command here,
+			// but that is no longer necessary since its attributes
+			// now are recorded on each shape when it is drawn.
+		});
+		border_flag_input.setAttribute('hasChangeHandler', 'true');
+	}
+
+
+
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	const drawing_mode_select = document.querySelector('.widget-drawing-mode select');
+	if (!drawing_mode_select.hasAttribute('hasChangeHandler')) {
+		// Change handler for pattern widget
+		drawing_mode_select.addEventListener('change', function(event) {
+			// Set global current_pattern to new value.
+			current_drawing_mode = parseInt(this.value);
+
+			// In the past, I recorded a `change_drawing_mode` command here,
+			// but that is no longer necessary since its attributes
+			// now are recorded on each shape when it is drawn.
+		});
+		drawing_mode_select.setAttribute('hasChangeHandler', 'true');
+	}
+
+
+
+	// Set a pointer to the chosen color pattern
+	current_font = fonts[DEFAULT_FONT_INDEX];
+
+	// Set up fonts widget
+	const font_select = document.querySelector('.widget-fonts select');
+
+	// First, empty any existing buttons
+	font_select.replaceChildren();
+
+	for (let i=0; i<fonts.length; i++) {
+		let font_obj = fonts[i];
+
+		font_select.insertAdjacentHTML('beforeend', `
+			<option class="font-option font-${i}" value="${i}">${font_obj.name}</option>
+		`);
+	}
+
+
+
+	// These outer .hasAttribute() checks ensure we don't re-bind this event
+	// when we render or replay the history (which can cascade).
+	if (!font_select.hasAttribute('hasChangeHandler')) {
+		// Change handler for font widget
+		font_select.addEventListener('change', function(event) {
+			// In order to show the font icons on all browsers, we're using the multi-select interface.
+			// But we don't want to allow multiple selections. So check if someone *did* do multiple selections.
+			if (this.selectedOptions.length > 1) {
+				let wanted_opt = current_font.id;
+				for (let opt of this.selectedOptions) {
+					if (parseInt(opt.value) != parseInt(current_font.id)) {
+						wanted_opt = parseInt(opt.value);
+					}
+				}
+				this.value = wanted_opt;
+			}
+
+
+			// Set global current_font to new value.
+			const new_font_index = parseInt(this.value);
+			current_font = fonts[new_font_index];
+
+			// In the past, I recorded a `change_font` command here,
+			// but that is no longer necessary since its attributes
+			// now are recorded on each shape when it is drawn.
+		});
+		font_select.setAttribute('hasChangeHandler', 'true');
+	}
+
+	// Manually change the mode menu to select "Replace" as the default.
+	document.querySelector('.widget-drawing-mode select').dispatchEvent(new Event('change'));
+
+	// Manually change the pattern menu to select "Filled" as the default.
+	document.querySelector('#fill-border').dispatchEvent(new Event('change'));
+
+	// Next manually set the pattern select to 1, and trigger the change event.
+	document.querySelector('.widget-patterns select').value = '1';
+	document.querySelector('.widget-patterns select').dispatchEvent(new Event('change'));
+
+	// Next manually set the font select to 1, and trigger the change event.
+	document.querySelector('.widget-fonts select').value = '1';
+	document.querySelector('.widget-fonts select').dispatchEvent(new Event('change'));
+
+}
 
 
 // ------------------------
@@ -707,7 +878,10 @@ button_start.addEventListener('click', function(event) {
 // ------------------------
 
 // Set the screen resolution, and the color palette, either from user-defined selections, or from data from a loaded file.
-function set_resolution_palette(res_id, pal_id, starting_new=false) {
+function set_resolution_palette(res_id, pal_id, starting_new) {
+	if (starting_new === undefined) {
+		const starting_new = false;
+	}
 
 	// Get the details of the user's chosen resolution
 	const user_resolution = resolutions.filter(elem => elem.slug == res_id)[0];
@@ -1033,82 +1207,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 
 
 
-
-
-	// // These outer .hasAttribute() checks ensure we don't re-bind this event
-	// // when we render or replay the history (which can cascade).
-	// if (!display.hasAttribute('hasTouchDragHandler')) {
-	// 	// CANVAS MOUSEDOWN/MOUSEUP HANDLER - SPECIFICALLY FOR PENCIL
-	// 	// Basically we have to watch for mousedown. If mousemove comes next, it's a drag.
-	// 	// If not, and we record a mouseup, then treat it like a single click.
-	// 	display.addEventListener('touchstart', function(event) {
-	// 		if (current_tool !== null && current_tool == 'draw_point') {
-	// 			event.stopPropagation();
-	// 			event.preventDefault();
-	// 			mouse_is_down = true;
-	// 		}
-	// 		return false;
-	// 	}, false);
-	// 	display.addEventListener('touchend', function(event) {
-	// 		if (current_tool !== null && current_tool == 'draw_point') {
-	// 			event.stopPropagation();
-	// 			event.preventDefault();
-	// 			if (mouse_is_dragging == true) {
-	// 				tool_functions[current_tool].ondragend(event);
-	// 			}
-	// 			else if (mouse_is_dragging == false) {
-	// 				tool_functions[current_tool].onclick(event);
-	// 			}
-	// 		}
-	// 		// mouse_is_down = false;
-	// 		mouse_is_dragging = false;
-	// 		return false;
-	// 	}, false);
-
-
-	// 	// CANVAS MOUSEMOVE HANDLER
-	// 	// Using a throttle function to keep the app snappier, especially with the blitting.
-	// 	display.addEventListener('touchmove', throttleFunction((event) => {
-	// 		event.stopPropagation();
-	// 		event.preventDefault();
-
-	// 		const touches = event.touches;
-
-	// 		if (current_tool !== 'rendering') {
-	// 			const [px, py] = translate_to_screen(event.layerX, event.layerY);
-
-	// 			if (px <= screen_width && py <= screen_height) {
-	// 				// if (current_tool !== null) {
-	// 				// 	tool_functions[current_tool].mousemove(event);
-	// 				// }
-	// 				if (current_tool !== null && current_tool == 'draw_point') {
-	// 					if (mouse_is_down == true) {
-	// 						mouse_is_dragging = true;
-	// 						for (touch of touches) {
-	// 							const clickEvent = new MouseEvent('click', {
-	// 								bubbles: true,
-	// 								cancelable: true,
-	// 								view: window,
-	// 								clientX: touch.clientX,
-	// 								clientY: touch.clientY
-	// 							});
-
-	// 							tool_functions[current_tool].ondrag(clickEvent);
-	// 						}
-	// 					}
-	// 				}
-	// 			}
-	// 			else {
-	// 				update_status(null,null);
-	// 			}
-	// 		}
-	// 		return false;
-	// 	}, 100), false);
-	// 	display.setAttribute('hasTouchDragHandler', 'true');
-	// }
-
-
-
 	// These outer .hasAttribute() checks ensure we don't re-bind this event
 	// when we render or replay the history (which can cascade).
 	if (!display.hasAttribute('hasRightClickHandler')) {
@@ -1205,177 +1303,6 @@ function set_resolution_palette(res_id, pal_id, starting_new=false) {
 	}
 
 
-	// Set drawing attributes to JD defaults.
-	border_flag = DEFAULT_BORDER_FLAG;
-	current_drawing_mode = DEFAULT_DRAWING_MODE;
-
-	document.querySelector('#fill-border').checked = Boolean(DEFAULT_BORDER_FLAG);
-	document.querySelector('.widget-drawing-mode select').value = DEFAULT_DRAWING_MODE;
-
-	// Set a pointer to the chosen fill pattern (use JD default at startup).
-	current_pattern = fill_patterns[DEFAULT_PATTERN_INDEX];
-	
-	// Set up patterns widget
-	const pattern_select = document.querySelector('.widget-patterns select');
-
-	// First, empty any existing buttons
-	pattern_select.replaceChildren();
-
-	for (let i=0; i<fill_patterns.length; i++) {
-		let pattern_obj = fill_patterns[i];
-
-		// This requires the use of my custom "Atari Patterns" fontset.
-		// Also, for maximum cross-platform compatibility, requires select to be set to "multiple" rather than typical dropdown.
-		let icon_code = (59392 + i).toString(16);
-
-		pattern_select.insertAdjacentHTML('beforeend', `
-			<option class="pattern-option pattern-${i}" value="${i}">&#x${icon_code}; ${pattern_obj.name}</option>
-		`);
-	}
-
-
-
-	// These outer .hasAttribute() checks ensure we don't re-bind this event
-	// when we render or replay the history (which can cascade).
-	if (!pattern_select.hasAttribute('hasChangeHandler')) {
-		// Change handler for pattern widget
-		pattern_select.addEventListener('change', function(event) {
-			// In order to show the pattern icons on all browsers, we're using the multi-select interface.
-			// But we don't want to allow multiple selections. So check if someone *did* do multiple selections.
-			if (this.selectedOptions.length > 1) {
-				let wanted_opt = current_pattern.id;
-				for (let opt of this.selectedOptions) {
-					if (parseInt(opt.value) != parseInt(current_pattern.id)) {
-						wanted_opt = parseInt(opt.value);
-					}
-				}
-				this.value = wanted_opt;
-			}
-
-
-			// Set global current_pattern to new value.
-			const new_pattern_index = parseInt(this.value);
-			current_pattern = fill_patterns[new_pattern_index];
-
-			// In the past, I recorded a `change_pattern` command here,
-			// but that is no longer necessary since its attributes
-			// now are recorded on each shape when it is drawn.
-		});
-		pattern_select.setAttribute('hasChangeHandler', 'true');
-	}
-
-	// These outer .hasAttribute() checks ensure we don't re-bind this event
-	// when we render or replay the history (which can cascade).
-	const border_flag_input = document.querySelector('#fill-border');
-	if (!border_flag_input.hasAttribute('hasChangeHandler')) {
-		// Change handler for fill-border input
-		border_flag_input.addEventListener('change', function(event) {
-			// Set global border_flag to new value.
-			const current_fill_border_flag = this.checked;
-
-			if (current_fill_border_flag == true || current_fill_border_flag == 'true' || current_fill_border_flag == 'checked') {
-				border_flag = 1;
-			}
-			else {
-				border_flag = 0;
-			}
-
-			// In the past, I recorded a `change_pattern` command here,
-			// but that is no longer necessary since its attributes
-			// now are recorded on each shape when it is drawn.
-		});
-		border_flag_input.setAttribute('hasChangeHandler', 'true');
-	}
-
-
-
-	// These outer .hasAttribute() checks ensure we don't re-bind this event
-	// when we render or replay the history (which can cascade).
-	const drawing_mode_select = document.querySelector('.widget-drawing-mode select');
-	if (!drawing_mode_select.hasAttribute('hasChangeHandler')) {
-		// Change handler for pattern widget
-		drawing_mode_select.addEventListener('change', function(event) {
-			// Set global current_pattern to new value.
-			current_drawing_mode = parseInt(this.value);
-
-			// In the past, I recorded a `change_drawing_mode` command here,
-			// but that is no longer necessary since its attributes
-			// now are recorded on each shape when it is drawn.
-		});
-		drawing_mode_select.setAttribute('hasChangeHandler', 'true');
-	}
-
-
-
-	// Set a pointer to the chosen color pattern
-	current_font = fonts[DEFAULT_FONT_INDEX];
-
-	// Set up fonts widget
-	const font_select = document.querySelector('.widget-fonts select');
-
-	// First, empty any existing buttons
-	font_select.replaceChildren();
-
-	for (let i=0; i<fonts.length; i++) {
-		let font_obj = fonts[i];
-
-		font_select.insertAdjacentHTML('beforeend', `
-			<option class="font-option font-${i}" value="${i}">${font_obj.name}</option>
-		`);
-	}
-
-
-
-	// These outer .hasAttribute() checks ensure we don't re-bind this event
-	// when we render or replay the history (which can cascade).
-	if (!font_select.hasAttribute('hasChangeHandler')) {
-		// Change handler for font widget
-		font_select.addEventListener('change', function(event) {
-			// In order to show the font icons on all browsers, we're using the multi-select interface.
-			// But we don't want to allow multiple selections. So check if someone *did* do multiple selections.
-			if (this.selectedOptions.length > 1) {
-				let wanted_opt = current_font.id;
-				for (let opt of this.selectedOptions) {
-					if (parseInt(opt.value) != parseInt(current_font.id)) {
-						wanted_opt = parseInt(opt.value);
-					}
-				}
-				this.value = wanted_opt;
-			}
-
-
-			// Set global current_font to new value.
-			const new_font_index = parseInt(this.value);
-			current_font = fonts[new_font_index];
-
-			// In the past, I recorded a `change_font` command here,
-			// but that is no longer necessary since its attributes
-			// now are recorded on each shape when it is drawn.
-		});
-		font_select.setAttribute('hasChangeHandler', 'true');
-	}
-
-
-
-
-
-
-
-
-
-	// Manually change the mode menu to select "Replace" as the default.
-	document.querySelector('.widget-drawing-mode select').dispatchEvent(new Event('change'));
-
-	// Manually change the pattern menu to select "Filled" as the default.
-	document.querySelector('#fill-border').dispatchEvent(new Event('change'));
-
-	// Next manually set the pattern select to 1, and trigger the change event.
-	document.querySelector('.widget-patterns select').value = '1';
-	document.querySelector('.widget-patterns select').dispatchEvent(new Event('change'));
-
-	// Next manually set the font select to 1, and trigger the change event.
-	document.querySelector('.widget-fonts select').value = '1';
-	document.querySelector('.widget-fonts select').dispatchEvent(new Event('change'));
 
 }
 
@@ -2127,6 +2054,14 @@ const renderer = {
 		border_flag = (user_border_flag === null) ? DEFAULT_BORDER_FLAG : user_border_flag;
 		current_drawing_mode = (user_drawing_mode === null) ? DEFAULT_DRAWING_MODE : user_drawing_mode;
 		current_font = user_font || fonts[DEFAULT_FONT_INDEX];
+
+		// Update the widgets with the current global attributes.
+		// Does NOT dispatch events or invoke change handlers.
+		document.querySelector('.widget-patterns select').value = current_pattern.id;
+		document.querySelector('#fill-border').checked = border_flag;
+		document.querySelector('.widget-drawing-mode select').value = current_drawing_mode;
+		document.querySelector('.widget-fonts select').value = current_font.id;
+
 		if (user_color !== null && virtual_canvas.get_color() !== user_color) {
 			this.set_color({ color: user_color });
 		}
